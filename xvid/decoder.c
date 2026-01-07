@@ -316,14 +316,10 @@ decoder_mbintra(DECODER * dec,
     stop_coding_timer();
 
     start_timer();
-    add_acdc(pMB, i, &block[i * 64], iDcScaler, predictors, dec->bs_version);
-    stop_prediction_timer();
-
-    start_timer();
     if (dec->quant_type == 0) {
-      dequant_h263_intra(&data[i * 64], &block[i * 64], iQuant, iDcScaler, dec->mpeg_quant_matrices);
+      add_acdc_dequant_h263(pMB, i, &data[i * 64], &block[i * 64], iQuant, iDcScaler, predictors, dec->bs_version);
     } else {
-      dequant_mpeg_intra(&data[i * 64], &block[i * 64], iQuant, iDcScaler, dec->mpeg_quant_matrices);
+      add_acdc_dequant_mpeg(pMB, i, &data[i * 64], &block[i * 64], iQuant, iDcScaler, predictors, dec->mpeg_quant_matrices, dec->bs_version);
     }
     stop_iquant_timer();
 
@@ -357,7 +353,7 @@ decoder_mb_decode(DECODER * dec,
         uint8_t * pV_Cur,
         const MACROBLOCK * pMB)
 {
-  DECLARE_ALIGNED_MATRIX(data, 1, 64, int16_t, CACHE_LINE);
+  DECLARE_ALIGNED_MATRIX(data, 6, 64, int16_t, CACHE_LINE);
 
   int stride = dec->edged_width;
   int i;
@@ -404,29 +400,33 @@ decoder_mb_decode(DECODER * dec,
     strides[5] = stride/2;
   }
 
+  /* Decode coeffs and dequantize */
+  start_timer();
   for (i = 0; i < 6; i++) {
-    /* Process only coded blocks */
     if (cbp & (1 << (5 - i))) {
-
-      /* Clear the block */
-      memset(&data[0], 0, 64*sizeof(int16_t));
-
-      /* Decode coeffs and dequantize on the fly */
-      start_timer();
-      get_inter_block(bs, &data[0], direction, iQuant, get_inter_matrix(dec->mpeg_quant_matrices));
-      stop_coding_timer();
-
-      /* iDCT */
-      start_timer();
-      idct((short * const)&data[0]);
-      stop_idct_timer();
-
-      /* Add this residual to the predicted block */
-      start_timer();
-      transfer_16to8add(dst[i], &data[0], strides[i]);
-      stop_transfer_timer();
+      memset(&data[i*64], 0, 64*sizeof(int16_t));
+      get_inter_block(bs, &data[i*64], direction, iQuant, get_inter_matrix(dec->mpeg_quant_matrices));
     }
   }
+  stop_coding_timer();
+
+  /* iDCT */
+  start_timer();
+  for (i = 0; i < 6; i++) {
+    if (cbp & (1 << (5 - i))) {
+      idct((short * const)&data[i*64]);
+    }
+  }
+  stop_idct_timer();
+
+  /* Add residual */
+  start_timer();
+  for (i = 0; i < 6; i++) {
+    if (cbp & (1 << (5 - i))) {
+      transfer_16to8add(dst[i], &data[i*64], strides[i]);
+    }
+  }
+  stop_transfer_timer();
 }
 
 static void __inline

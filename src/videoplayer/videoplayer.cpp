@@ -36,6 +36,8 @@ VideoPlayer::VideoPlayer(const std::string& filename) {
     // xvid global init
     xvid_gbl_init_t xvid_gbl_init{};
     xvid_gbl_init.version = XVID_VERSION;
+    xvid_gbl_init.sram_base = (void*)this->sramBuffer.get();
+    xvid_gbl_init.sram_size = 0x20000;
     xvid_global(NULL, XVID_GBL_INIT, &xvid_gbl_init, NULL);
     
     // xvid decoder init

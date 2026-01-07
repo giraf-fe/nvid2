@@ -46,6 +46,26 @@ void MBPrediction(FRAMEINFO * frame,	/* <-- The parameter for ACDC and MV predic
 				int16_t * qcoeff,	/* <-> The quantized DCT coefficients	*/
 				const int bound);
 
+
+void add_acdc_dequant_h263(MACROBLOCK * pMB,
+		      uint32_t block,
+		      int16_t * data,   
+		      int16_t * dct_codes, 
+		      uint32_t iQuant,
+		      uint32_t iDcScaler,
+		      int16_t predictors[8],
+		      const int bsversion);
+
+void add_acdc_dequant_mpeg(MACROBLOCK * pMB,
+		      uint32_t block,
+		      int16_t * data,   
+		      int16_t * dct_codes, 
+		      uint32_t iQuant,
+		      uint32_t iDcScaler,
+		      int16_t predictors[8],
+		      const uint16_t * mpeg_quant_matrices,
+		      const int bsversion);
+
 void add_acdc(MACROBLOCK * pMB,
 			uint32_t block,
 			int16_t dct_codes[64],

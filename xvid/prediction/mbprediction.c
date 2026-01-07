@@ -33,6 +33,8 @@
 #include "../bitstream/cbp.h"
 #include "../bitstream/mbcoding.h"
 #include "../bitstream/zigzag.h"
+#include "../quant/quant_matrix.h"
+
 
 
 static int __inline
@@ -210,6 +212,163 @@ predict_acdc(MACROBLOCK * pMBs,
  * compatible to avoid artifacts */
 #define BS_VERSION_BUGGY_DC_CLIPPING 34
 
+
+void
+add_acdc_dequant_h263(MACROBLOCK * pMB,
+		      uint32_t block,
+		      int16_t * data,   
+		      int16_t * dct_codes, 
+		      uint32_t iQuant,
+		      uint32_t iDcScaler,
+		      int16_t predictors[8],
+		      const int bsversion)
+{
+	uint8_t acpred_direction = pMB->acpred_directions[block];
+	int16_t *pCurrent = (int16_t*)pMB->pred_values[block];
+	uint32_t i;
+	const int32_t quant_m_2 = iQuant << 1;
+	const int32_t quant_add = (iQuant & 1 ? iQuant : iQuant - 1);
+
+	/* DC Prediction & Dequant */
+	dct_codes[0] += predictors[0];
+	pCurrent[0] = dct_codes[0]*iDcScaler;
+	if (bsversion > BS_VERSION_BUGGY_DC_CLIPPING) {
+		pCurrent[0] = CLIP(pCurrent[0], -2048, 2047);
+	}
+	data[0] = pCurrent[0];
+
+	if (acpred_direction == 1) { /* Vertical */
+		for (i = 1; i < 64; i++) {
+			int16_t level = dct_codes[i];
+			if (i < 8) {
+				level += predictors[i];
+				dct_codes[i] = level;
+				pCurrent[i] = level;
+				pCurrent[i + 7] = dct_codes[i * 8];
+			}
+
+			if (level == 0) {
+				data[i] = 0;
+			} else if (level < 0) {
+				int32_t acLevel = quant_m_2 * -level + quant_add;
+				data[i] = (acLevel <= 2048 ? -acLevel : -2048);
+			} else {
+				int32_t acLevel = quant_m_2 * level + quant_add;
+				data[i] = (acLevel <= 2047 ? acLevel : 2047);
+			}
+		}
+	} else if (acpred_direction == 2) { /* Horizontal */
+		for (i = 1; i < 64; i++) {
+			int16_t level = dct_codes[i];
+			if ((i & 7) == 0) { /* Multiples of 8: 8, 16..56 */
+				int idx = i >> 3;
+				level += predictors[idx];
+				dct_codes[i] = level;
+				pCurrent[idx + 7] = level;
+				pCurrent[idx] = dct_codes[idx];
+			}		
+			
+			if (level == 0) {
+				data[i] = 0;
+			} else if (level < 0) {
+				int32_t acLevel = quant_m_2 * -level + quant_add;
+				data[i] = (acLevel <= 2048 ? -acLevel : -2048);
+			} else {
+				int32_t acLevel = quant_m_2 * level + quant_add;
+				data[i] = (acLevel <= 2047 ? acLevel : 2047);
+			}
+		}
+		
+	} else { /* No prediction */
+		for (i = 1; i < 8; i++) {
+			pCurrent[i] = dct_codes[i];
+			pCurrent[i + 7] = dct_codes[i * 8];
+		}
+		for (i = 1; i < 64; i++) {
+			int16_t level = dct_codes[i];
+			if (level == 0) {
+				data[i] = 0;
+			} else if (level < 0) {
+				int32_t acLevel = quant_m_2 * -level + quant_add;
+				data[i] = (acLevel <= 2048 ? -acLevel : -2048);
+			} else {
+				int32_t acLevel = quant_m_2 * level + quant_add;
+				data[i] = (acLevel <= 2047 ? acLevel : 2047);
+			}
+		}
+	}
+}
+
+/* Redefined for clarity and correctness in the actual implementation below */
+void
+add_acdc_dequant_mpeg(MACROBLOCK * pMB,
+		      uint32_t block,
+		      int16_t * data,   
+		      int16_t * dct_codes, 
+		      uint32_t iQuant,
+		      uint32_t iDcScaler,
+		      int16_t predictors[8],
+		      const uint16_t * mpeg_quant_matrices,
+		      const int bsversion)
+{
+	uint8_t acpred_direction = pMB->acpred_directions[block];
+	int16_t *pCurrent = (int16_t*)pMB->pred_values[block];
+	uint32_t i;
+	const uint16_t *intra_matrix = get_intra_matrix(mpeg_quant_matrices);
+
+	/* DC */
+	dct_codes[0] += predictors[0];
+	pCurrent[0] = dct_codes[0]*iDcScaler;
+	if (bsversion > BS_VERSION_BUGGY_DC_CLIPPING) {
+		pCurrent[0] = CLIP(pCurrent[0], -2048, 2047);
+	}
+	data[0] = pCurrent[0];
+
+	/* Helper macro for MPEG dequant */
+	#define MPEG_DEQUANT(val, idx) \
+		if (val == 0) { \
+			data[idx] = 0; \
+		} else if (val < 0) { \
+			uint32_t level = -val; \
+			level = (level * intra_matrix[idx] * iQuant) >> 3; \
+			data[idx] = (level <= 2048 ? -(int16_t) level : -2048); \
+		} else { \
+			uint32_t level = val; \
+			level = (level * intra_matrix[idx] * iQuant) >> 3; \
+			data[idx] = (level <= 2047 ? level : 2047); \
+		}
+
+	if (acpred_direction == 1) { /* Vertical */
+		for (i = 1; i < 64; i++) {
+			if (i < 8) {
+				dct_codes[i] += predictors[i];
+				pCurrent[i] = dct_codes[i];
+				pCurrent[i + 7] = dct_codes[i * 8];
+			}
+			MPEG_DEQUANT(dct_codes[i], i);
+		}
+	} else if (acpred_direction == 2) { /* Horizontal */
+		/* Update predictors first to be safe and simple */
+		for (i = 1; i < 8; i++) {
+			dct_codes[i * 8] += predictors[i];
+			pCurrent[i + 7] = dct_codes[i * 8];
+			pCurrent[i] = dct_codes[i];
+		}
+		for (i = 1; i < 64; i++) {
+			MPEG_DEQUANT(dct_codes[i], i);
+		}
+	} else { /* None */
+		for (i = 1; i < 8; i++) {
+			pCurrent[i] = dct_codes[i];
+			pCurrent[i + 7] = dct_codes[i * 8];
+		}
+		for (i = 1; i < 64; i++) {
+			MPEG_DEQUANT(dct_codes[i], i);
+		}
+	}
+	#undef MPEG_DEQUANT
+}
+
 void
 add_acdc(MACROBLOCK * pMB,
 		 uint32_t block,
@@ -256,8 +415,6 @@ add_acdc(MACROBLOCK * pMB,
 		}
 	}
 }
-
-
 
 /*****************************************************************************
  ****************************************************************************/

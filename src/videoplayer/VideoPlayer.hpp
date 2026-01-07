@@ -75,6 +75,8 @@ struct FrameInFlightData {
 };
 
 class VideoPlayer {
+    SRAMBuffer<0xA4000000, 0x20000, 0x20000> sramBuffer;
+
     FILE* videoFile = nullptr;
     bool fileEndReached = false;
     void* xvidDecoderHandle = nullptr;

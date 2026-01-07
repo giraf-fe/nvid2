@@ -73,15 +73,6 @@ extern XVID_QP_FUNCS xvid_QP_Add_Funcs_C_ref;   /* for B-frames */
 extern XVID_QP_FUNCS xvid_QP_Funcs_C;       /* for P-frames */
 extern XVID_QP_FUNCS xvid_QP_Add_Funcs_C;   /* for B-frames */
 
-#if defined(ARCH_IS_IA32) || defined(ARCH_IS_X86_64)
-extern XVID_QP_FUNCS xvid_QP_Funcs_mmx;
-extern XVID_QP_FUNCS xvid_QP_Add_Funcs_mmx;
-#endif
-
-#ifdef ARCH_IS_PPC
-extern XVID_QP_FUNCS xvid_QP_Funcs_Altivec_C;
-extern XVID_QP_FUNCS xvid_QP_Add_Funcs_Altivec_C;
-#endif
 
 extern XVID_QP_FUNCS *xvid_QP_Funcs;      /* <- main pointer for enc/dec structure */
 extern XVID_QP_FUNCS *xvid_QP_Add_Funcs;  /* <- main pointer for enc/dec structure */

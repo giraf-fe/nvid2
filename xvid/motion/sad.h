@@ -42,21 +42,6 @@ typedef sad16Func *sad16FuncPtr;
 extern sad16FuncPtr sad16;
 sad16Func sad16_c;
 
-#if defined(ARCH_IS_IA32) || defined(ARCH_IS_X86_64)
-sad16Func sad16_mmx;
-sad16Func sad16_xmm;
-sad16Func sad16_3dne;
-sad16Func sad16_sse2;
-sad16Func sad16_sse3;
-#endif
-
-#ifdef ARCH_IS_IA64
-sad16Func sad16_ia64;
-#endif
-
-#ifdef ARCH_IS_PPC
-sad16Func sad16_altivec_c;
-#endif
 
 sad16Func mrsad16_c;
 
@@ -67,20 +52,6 @@ typedef sad8Func *sad8FuncPtr;
 extern sad8FuncPtr sad8;
 sad8Func sad8_c;
 
-#if defined(ARCH_IS_IA32) || defined(ARCH_IS_X86_64)
-sad8Func sad8_mmx;
-sad8Func sad8_xmm;
-sad8Func sad8_3dne;
-#endif
-
-#ifdef ARCH_IS_IA64
-sad8Func sad8_ia64;
-#endif
-
-#ifdef ARCH_IS_PPC
-sad8Func sad8_altivec_c;
-#endif
-
 typedef uint32_t(sad16biFunc) (const uint8_t * const cur,
 							   const uint8_t * const ref1,
 							   const uint8_t * const ref2,
@@ -89,21 +60,6 @@ typedef sad16biFunc *sad16biFuncPtr;
 extern sad16biFuncPtr sad16bi;
 sad16biFunc sad16bi_c;
 
-#if defined(ARCH_IS_IA32) || defined(ARCH_IS_X86_64)
-sad16biFunc sad16bi_mmx;
-sad16biFunc sad16bi_xmm;
-sad16biFunc sad16bi_3dne;
-sad16biFunc sad16bi_3dn;
-#endif
-
-#ifdef ARCH_IS_IA64
-sad16biFunc sad16bi_ia64;
-#endif
-
-#ifdef ARCH_IS_PPC
-sad16biFunc sad16bi_altivec_c;
-#endif
-
 typedef uint32_t(sad8biFunc) (const uint8_t * const cur,
 							   const uint8_t * const ref1,
 							   const uint8_t * const ref2,
@@ -111,13 +67,6 @@ typedef uint32_t(sad8biFunc) (const uint8_t * const cur,
 typedef sad8biFunc *sad8biFuncPtr;
 extern sad8biFuncPtr sad8bi;
 sad8biFunc sad8bi_c;
-
-#if defined(ARCH_IS_IA32) || defined(ARCH_IS_X86_64)
-sad8biFunc sad8bi_mmx;
-sad8biFunc sad8bi_xmm;
-sad8biFunc sad8bi_3dne;
-sad8biFunc sad8bi_3dn;
-#endif
 
 typedef uint32_t(dev16Func) (const uint8_t * const cur,
 							 const uint32_t stride);
@@ -134,24 +83,6 @@ extern sad16vFuncPtr sad16v;
 sad16vFunc sad16v_c;
 sad16vFunc sad32v_c;
 
-#if defined(ARCH_IS_IA32) || defined(ARCH_IS_X86_64)
-dev16Func dev16_mmx;
-dev16Func dev16_xmm;
-dev16Func dev16_3dne;
-dev16Func dev16_sse2;
-dev16Func dev16_sse3;
-sad16vFunc sad16v_xmm;
-sad16vFunc sad16v_mmx;
-#endif
-
-#ifdef ARCH_IS_IA64
-dev16Func dev16_ia64;
-#endif
-
-#ifdef ARCH_IS_PPC
-dev16Func dev16_altivec_c;
-#endif
-
 /* This function assumes blocks use 16bit signed elements */
 typedef uint32_t (sse8Func_16bit)(const int16_t * cur,
 								  const int16_t * ref,
@@ -160,13 +91,6 @@ typedef sse8Func_16bit *sse8Func_16bitPtr;
 extern sse8Func_16bitPtr sse8_16bit;
 
 sse8Func_16bit sse8_16bit_c;
-#if defined(ARCH_IS_IA32) || defined(ARCH_IS_X86_64)
-sse8Func_16bit sse8_16bit_mmx;
-#endif
-
-#ifdef ARCH_IS_PPC
-sse8Func_16bit sse8_16bit_altivec_c;
-#endif
 
 /* This function assumes blocks use 8bit *un*signed elements */
 typedef uint32_t (sse8Func_8bit)(const uint8_t * cur,
@@ -177,9 +101,6 @@ extern sse8Func_8bitPtr sse8_8bit;
 
 sse8Func_8bit sse8_8bit_c;
 
-#if defined(ARCH_IS_IA32) || defined(ARCH_IS_X86_64)
-sse8Func_8bit sse8_8bit_mmx;
-#endif
 
 typedef uint32_t (sseh8Func_16bit)(const int16_t * cur,
 								   const int16_t * ref,
@@ -188,18 +109,13 @@ typedef sseh8Func_16bit *sseh8Func_16bitPtr;
 extern sseh8Func_16bitPtr sseh8_16bit;
 
 sseh8Func_16bit sseh8_16bit_c;
-#if defined(ARCH_IS_IA32) || defined(ARCH_IS_X86_64)
-sseh8Func_16bit sseh8_16bit_sse2;
-#endif
+
 
 typedef uint32_t (coeff8_energyFunc)(const int16_t * cur);
 typedef coeff8_energyFunc *coeff8_energyFunc_Ptr;
 extern coeff8_energyFunc_Ptr coeff8_energy;
 
 coeff8_energyFunc coeff8_energy_c;
-#if defined(ARCH_IS_IA32) || defined(ARCH_IS_X86_64)
-coeff8_energyFunc coeff8_energy_sse2;
-#endif
 
 typedef uint32_t (blocksum8Func)(const uint8_t * cur, int stride, 
 								 uint16_t sums[4], uint32_t squares[4]);
@@ -207,9 +123,6 @@ typedef blocksum8Func *blocksum8Func_Ptr;
 extern blocksum8Func_Ptr blocksum8;
 
 blocksum8Func blocksum8_c;
-#if defined(ARCH_IS_IA32) || defined(ARCH_IS_X86_64)
-blocksum8Func blocksum8_sse2;
-#endif
 
 /* Coeffs for MSE_H calculation */
 

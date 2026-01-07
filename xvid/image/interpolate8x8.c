@@ -115,29 +115,72 @@ interpolate8x8_halfpel_h_c(uint8_t * const dst,
 						   const uint32_t stride,
 						   const uint32_t rounding)
 {
-	uintptr_t j;
+	uint32_t j;
+	const uint32_t mask = 0x7F7F7F7F;
 
-	if (rounding) {
-		for (j = 0; j < 8*stride; j+=stride) {
-				dst[j + 0] = (uint8_t)((src[j + 0] + src[j + 1] )>>1);
-				dst[j + 1] = (uint8_t)((src[j + 1] + src[j + 2] )>>1);
-				dst[j + 2] = (uint8_t)((src[j + 2] + src[j + 3] )>>1);
-				dst[j + 3] = (uint8_t)((src[j + 3] + src[j + 4] )>>1);
-				dst[j + 4] = (uint8_t)((src[j + 4] + src[j + 5] )>>1);
-				dst[j + 5] = (uint8_t)((src[j + 5] + src[j + 6] )>>1);
-				dst[j + 6] = (uint8_t)((src[j + 6] + src[j + 7] )>>1);
-				dst[j + 7] = (uint8_t)((src[j + 7] + src[j + 8] )>>1);
+	if ((((uintptr_t)src | (uintptr_t)dst | stride) & 3) == 0) {
+		/* Fast Path: Aligned loads */
+		if (rounding) {
+			for (j = 0; j < 8*stride; j+=stride) {
+				const uint32_t *s = (const uint32_t *)(src + j);
+				uint32_t *d = (uint32_t *)(dst + j);
+				
+				uint32_t w0 = s[0];
+				uint32_t w1 = s[1];
+				uint32_t w2 = s[2];
+				
+				uint32_t w0_next = (w0 >> 8) | (w1 << 24);
+				uint32_t w1_next = (w1 >> 8) | (w2 << 24);
+
+				uint32_t avg1 = (w0 | w0_next) - (((w0 ^ w0_next) >> 1) & mask);
+				d[0] = avg1;
+				
+				uint32_t avg2 = (w1 | w1_next) - (((w1 ^ w1_next) >> 1) & mask);
+				d[1] = avg2;
+			}
+		} else {
+			for (j = 0; j < 8*stride; j+=stride) {
+				const uint32_t *s = (const uint32_t *)(src + j);
+				uint32_t *d = (uint32_t *)(dst + j);
+
+				uint32_t w0 = s[0];
+				uint32_t w1 = s[1];
+				uint32_t w2 = s[2];
+				
+				uint32_t w0_next = (w0 >> 8) | (w1 << 24);
+				uint32_t w1_next = (w1 >> 8) | (w2 << 24);
+
+				uint32_t avg1 = (w0 & w0_next) + (((w0 ^ w0_next) >> 1) & mask);
+				d[0] = avg1;
+				
+				uint32_t avg2 = (w1 & w1_next) + (((w1 ^ w1_next) >> 1) & mask);
+				d[1] = avg2;
+			}
 		}
 	} else {
-		for (j = 0; j < 8*stride; j+=stride) {
-				dst[j + 0] = (uint8_t)((src[j + 0] + src[j + 1] + 1)>>1);
-				dst[j + 1] = (uint8_t)((src[j + 1] + src[j + 2] + 1)>>1);
-				dst[j + 2] = (uint8_t)((src[j + 2] + src[j + 3] + 1)>>1);
-				dst[j + 3] = (uint8_t)((src[j + 3] + src[j + 4] + 1)>>1);
-				dst[j + 4] = (uint8_t)((src[j + 4] + src[j + 5] + 1)>>1);
-				dst[j + 5] = (uint8_t)((src[j + 5] + src[j + 6] + 1)>>1);
-				dst[j + 6] = (uint8_t)((src[j + 6] + src[j + 7] + 1)>>1);
-				dst[j + 7] = (uint8_t)((src[j + 7] + src[j + 8] + 1)>>1);
+		/* Slow Path: Unaligned / Byte-wise */
+		if (rounding) {
+			for (j = 0; j < 8*stride; j+=stride) {
+					dst[j + 0] = (uint8_t)((src[j + 0] + src[j + 1] )>>1);
+					dst[j + 1] = (uint8_t)((src[j + 1] + src[j + 2] )>>1);
+					dst[j + 2] = (uint8_t)((src[j + 2] + src[j + 3] )>>1);
+					dst[j + 3] = (uint8_t)((src[j + 3] + src[j + 4] )>>1);
+					dst[j + 4] = (uint8_t)((src[j + 4] + src[j + 5] )>>1);
+					dst[j + 5] = (uint8_t)((src[j + 5] + src[j + 6] )>>1);
+					dst[j + 6] = (uint8_t)((src[j + 6] + src[j + 7] )>>1);
+					dst[j + 7] = (uint8_t)((src[j + 7] + src[j + 8] )>>1);
+			}
+		} else {
+			for (j = 0; j < 8*stride; j+=stride) {
+					dst[j + 0] = (uint8_t)((src[j + 0] + src[j + 1] + 1)>>1);
+					dst[j + 1] = (uint8_t)((src[j + 1] + src[j + 2] + 1)>>1);
+					dst[j + 2] = (uint8_t)((src[j + 2] + src[j + 3] + 1)>>1);
+					dst[j + 3] = (uint8_t)((src[j + 3] + src[j + 4] + 1)>>1);
+					dst[j + 4] = (uint8_t)((src[j + 4] + src[j + 5] + 1)>>1);
+					dst[j + 5] = (uint8_t)((src[j + 5] + src[j + 6] + 1)>>1);
+					dst[j + 6] = (uint8_t)((src[j + 6] + src[j + 7] + 1)>>1);
+					dst[j + 7] = (uint8_t)((src[j + 7] + src[j + 8] + 1)>>1);
+			}
 		}
 	}
 }
@@ -220,30 +263,62 @@ interpolate8x8_halfpel_v_c(uint8_t * const dst,
 						   const uint32_t stride,
 						   const uint32_t rounding)
 {
-	uintptr_t j;
+	uint32_t j;
+	const uint32_t mask = 0x7F7F7F7F;
 
-
-	if (rounding) {
-		for (j = 0; j < 8*stride; j+=stride) {
-				dst[j + 0] = (uint8_t)((src[j + 0] + src[j + stride + 0] )>>1);
-				dst[j + 1] = (uint8_t)((src[j + 1] + src[j + stride + 1] )>>1);
-				dst[j + 2] = (uint8_t)((src[j + 2] + src[j + stride + 2] )>>1);
-				dst[j + 3] = (uint8_t)((src[j + 3] + src[j + stride + 3] )>>1);
-				dst[j + 4] = (uint8_t)((src[j + 4] + src[j + stride + 4] )>>1);
-				dst[j + 5] = (uint8_t)((src[j + 5] + src[j + stride + 5] )>>1);
-				dst[j + 6] = (uint8_t)((src[j + 6] + src[j + stride + 6] )>>1);
-				dst[j + 7] = (uint8_t)((src[j + 7] + src[j + stride + 7] )>>1);
+	if ((((uintptr_t)src | (uintptr_t)dst | stride) & 3) == 0) {
+		if (rounding) {
+			for (j = 0; j < 8*stride; j+=stride) {
+				const uint32_t *s1 = (const uint32_t *)(src + j);
+				const uint32_t *s2 = (const uint32_t *)(src + j + stride);
+				uint32_t *d = (uint32_t *)(dst + j);
+				
+				uint32_t a1 = s1[0];
+				uint32_t b1 = s2[0];
+				d[0] = (a1 | b1) - (((a1 ^ b1) >> 1) & mask);
+				
+				uint32_t a2 = s1[1];
+				uint32_t b2 = s2[1];
+				d[1] = (a2 | b2) - (((a2 ^ b2) >> 1) & mask);
+			}
+		} else {
+			for (j = 0; j < 8*stride; j+=stride) {
+				const uint32_t *s1 = (const uint32_t *)(src + j);
+				const uint32_t *s2 = (const uint32_t *)(src + j + stride);
+				uint32_t *d = (uint32_t *)(dst + j);
+				
+				uint32_t a1 = s1[0];
+				uint32_t b1 = s2[0];
+				d[0] = (a1 & b1) + (((a1 ^ b1) >> 1) & mask);
+				
+				uint32_t a2 = s1[1];
+				uint32_t b2 = s2[1];
+				d[1] = (a2 & b2) + (((a2 ^ b2) >> 1) & mask);
+			}
 		}
 	} else {
-		for (j = 0; j < 8*stride; j+=stride) {
-				dst[j + 0] = (uint8_t)((src[j + 0] + src[j + stride + 0] + 1)>>1);
-				dst[j + 1] = (uint8_t)((src[j + 1] + src[j + stride + 1] + 1)>>1);
-				dst[j + 2] = (uint8_t)((src[j + 2] + src[j + stride + 2] + 1)>>1);
-				dst[j + 3] = (uint8_t)((src[j + 3] + src[j + stride + 3] + 1)>>1);
-				dst[j + 4] = (uint8_t)((src[j + 4] + src[j + stride + 4] + 1)>>1);
-				dst[j + 5] = (uint8_t)((src[j + 5] + src[j + stride + 5] + 1)>>1);
-				dst[j + 6] = (uint8_t)((src[j + 6] + src[j + stride + 6] + 1)>>1);
-				dst[j + 7] = (uint8_t)((src[j + 7] + src[j + stride + 7] + 1)>>1);
+		if (rounding) {
+			for (j = 0; j < 8*stride; j+=stride) {
+					dst[j + 0] = (uint8_t)((src[j + 0] + src[j + stride + 0] )>>1);
+					dst[j + 1] = (uint8_t)((src[j + 1] + src[j + stride + 1] )>>1);
+					dst[j + 2] = (uint8_t)((src[j + 2] + src[j + stride + 2] )>>1);
+					dst[j + 3] = (uint8_t)((src[j + 3] + src[j + stride + 3] )>>1);
+					dst[j + 4] = (uint8_t)((src[j + 4] + src[j + stride + 4] )>>1);
+					dst[j + 5] = (uint8_t)((src[j + 5] + src[j + stride + 5] )>>1);
+					dst[j + 6] = (uint8_t)((src[j + 6] + src[j + stride + 6] )>>1);
+					dst[j + 7] = (uint8_t)((src[j + 7] + src[j + stride + 7] )>>1);
+			}
+		} else {
+			for (j = 0; j < 8*stride; j+=stride) {
+					dst[j + 0] = (uint8_t)((src[j + 0] + src[j + stride + 0] + 1)>>1);
+					dst[j + 1] = (uint8_t)((src[j + 1] + src[j + stride + 1] + 1)>>1);
+					dst[j + 2] = (uint8_t)((src[j + 2] + src[j + stride + 2] + 1)>>1);
+					dst[j + 3] = (uint8_t)((src[j + 3] + src[j + stride + 3] + 1)>>1);
+					dst[j + 4] = (uint8_t)((src[j + 4] + src[j + stride + 4] + 1)>>1);
+					dst[j + 5] = (uint8_t)((src[j + 5] + src[j + stride + 5] + 1)>>1);
+					dst[j + 6] = (uint8_t)((src[j + 6] + src[j + stride + 6] + 1)>>1);
+					dst[j + 7] = (uint8_t)((src[j + 7] + src[j + stride + 7] + 1)>>1);
+			}
 		}
 	}
 }
@@ -328,29 +403,83 @@ interpolate8x8_halfpel_hv_c(uint8_t * const dst,
 							const uint32_t stride,
 							const uint32_t rounding)
 {
-	uintptr_t j;
+	uint32_t j;
+	const uint32_t mask_evens = 0x00FF00FF;
+    const uint32_t r = rounding ? 0x00010001 : 0x00020002;
 
-	if (rounding) {
+	if ((((uintptr_t)src | (uintptr_t)dst | stride) & 3) == 0) {
 		for (j = 0; j < 8*stride; j+=stride) {
-				dst[j + 0] = (uint8_t)((src[j+0] + src[j+1] + src[j+stride+0] + src[j+stride+1] +1)>>2);
-				dst[j + 1] = (uint8_t)((src[j+1] + src[j+2] + src[j+stride+1] + src[j+stride+2] +1)>>2);
-				dst[j + 2] = (uint8_t)((src[j+2] + src[j+3] + src[j+stride+2] + src[j+stride+3] +1)>>2);
-				dst[j + 3] = (uint8_t)((src[j+3] + src[j+4] + src[j+stride+3] + src[j+stride+4] +1)>>2);
-				dst[j + 4] = (uint8_t)((src[j+4] + src[j+5] + src[j+stride+4] + src[j+stride+5] +1)>>2);
-				dst[j + 5] = (uint8_t)((src[j+5] + src[j+6] + src[j+stride+5] + src[j+stride+6] +1)>>2);
-				dst[j + 6] = (uint8_t)((src[j+6] + src[j+7] + src[j+stride+6] + src[j+stride+7] +1)>>2);
-				dst[j + 7] = (uint8_t)((src[j+7] + src[j+8] + src[j+stride+7] + src[j+stride+8] +1)>>2);
+			const uint32_t *s1 = (const uint32_t *)(src + j);
+			const uint32_t *s2 = (const uint32_t *)(src + j + stride);
+			uint32_t *d = (uint32_t *)(dst + j);
+            
+            uint32_t w0_t = s1[0];
+            uint32_t w1_t = s1[1];
+            uint32_t w2_t = s1[2];
+            
+            uint32_t w0_b = s2[0];
+            uint32_t w1_b = s2[1];
+            uint32_t w2_b = s2[2];
+            
+            /* ---- First 4 pixels (p0..p3) ---- */
+            uint32_t w0_t_next = (w0_t >> 8) | (w1_t << 24);
+            uint32_t w0_b_next = (w0_b >> 8) | (w1_b << 24);
+            
+            uint32_t h_even_t = (w0_t & mask_evens) + (w0_t_next & mask_evens);
+            uint32_t h_odd_t  = ((w0_t >> 8) & mask_evens) + ((w0_t_next >> 8) & mask_evens);
+            
+            uint32_t h_even_b = (w0_b & mask_evens) + (w0_b_next & mask_evens);
+            uint32_t h_odd_b  = ((w0_b >> 8) & mask_evens) + ((w0_b_next >> 8) & mask_evens);
+            
+            uint32_t sum_even = h_even_t + h_even_b + r;
+            uint32_t sum_odd  = h_odd_t + h_odd_b + r;
+            
+            uint32_t res_even = (sum_even >> 2) & mask_evens;
+            uint32_t res_odd  = (sum_odd >> 2) & mask_evens;
+            
+            d[0] = res_even | (res_odd << 8);
+            
+            /* ---- Second 4 pixels (p4..p7) ---- */
+            uint32_t w1_t_next = (w1_t >> 8) | (w2_t << 24);
+            uint32_t w1_b_next = (w1_b >> 8) | (w2_b << 24);
+            
+            h_even_t = (w1_t & mask_evens) + (w1_t_next & mask_evens);
+            h_odd_t  = ((w1_t >> 8) & mask_evens) + ((w1_t_next >> 8) & mask_evens);
+            
+            h_even_b = (w1_b & mask_evens) + (w1_b_next & mask_evens);
+            h_odd_b  = ((w1_b >> 8) & mask_evens) + ((w1_b_next >> 8) & mask_evens);
+            
+            sum_even = h_even_t + h_even_b + r;
+            sum_odd  = h_odd_t + h_odd_b + r;
+            
+            res_even = (sum_even >> 2) & mask_evens;
+            res_odd  = (sum_odd >> 2) & mask_evens;
+            
+            d[1] = res_even | (res_odd << 8);
 		}
 	} else {
-		for (j = 0; j < 8*stride; j+=stride) {
-				dst[j + 0] = (uint8_t)((src[j+0] + src[j+1] + src[j+stride+0] + src[j+stride+1] +2)>>2);
-				dst[j + 1] = (uint8_t)((src[j+1] + src[j+2] + src[j+stride+1] + src[j+stride+2] +2)>>2);
-				dst[j + 2] = (uint8_t)((src[j+2] + src[j+3] + src[j+stride+2] + src[j+stride+3] +2)>>2);
-				dst[j + 3] = (uint8_t)((src[j+3] + src[j+4] + src[j+stride+3] + src[j+stride+4] +2)>>2);
-				dst[j + 4] = (uint8_t)((src[j+4] + src[j+5] + src[j+stride+4] + src[j+stride+5] +2)>>2);
-				dst[j + 5] = (uint8_t)((src[j+5] + src[j+6] + src[j+stride+5] + src[j+stride+6] +2)>>2);
-				dst[j + 6] = (uint8_t)((src[j+6] + src[j+7] + src[j+stride+6] + src[j+stride+7] +2)>>2);
-				dst[j + 7] = (uint8_t)((src[j+7] + src[j+8] + src[j+stride+7] + src[j+stride+8] +2)>>2);
+		if (rounding) {
+			for (j = 0; j < 8*stride; j+=stride) {
+					dst[j + 0] = (uint8_t)((src[j+0] + src[j+1] + src[j+stride+0] + src[j+stride+1] +1)>>2);
+					dst[j + 1] = (uint8_t)((src[j+1] + src[j+2] + src[j+stride+1] + src[j+stride+2] +1)>>2);
+					dst[j + 2] = (uint8_t)((src[j+2] + src[j+3] + src[j+stride+2] + src[j+stride+3] +1)>>2);
+					dst[j + 3] = (uint8_t)((src[j+3] + src[j+4] + src[j+stride+3] + src[j+stride+4] +1)>>2);
+					dst[j + 4] = (uint8_t)((src[j+4] + src[j+5] + src[j+stride+4] + src[j+stride+5] +1)>>2);
+					dst[j + 5] = (uint8_t)((src[j+5] + src[j+6] + src[j+stride+5] + src[j+stride+6] +1)>>2);
+					dst[j + 6] = (uint8_t)((src[j+6] + src[j+7] + src[j+stride+6] + src[j+stride+7] +1)>>2);
+					dst[j + 7] = (uint8_t)((src[j+7] + src[j+8] + src[j+stride+7] + src[j+stride+8] +1)>>2);
+			}
+		} else {
+			for (j = 0; j < 8*stride; j+=stride) {
+					dst[j + 0] = (uint8_t)((src[j+0] + src[j+1] + src[j+stride+0] + src[j+stride+1] +2)>>2);
+					dst[j + 1] = (uint8_t)((src[j+1] + src[j+2] + src[j+stride+1] + src[j+stride+2] +2)>>2);
+					dst[j + 2] = (uint8_t)((src[j+2] + src[j+3] + src[j+stride+2] + src[j+stride+3] +2)>>2);
+					dst[j + 3] = (uint8_t)((src[j+3] + src[j+4] + src[j+stride+3] + src[j+stride+4] +2)>>2);
+					dst[j + 4] = (uint8_t)((src[j+4] + src[j+5] + src[j+stride+4] + src[j+stride+5] +2)>>2);
+					dst[j + 5] = (uint8_t)((src[j+5] + src[j+6] + src[j+stride+5] + src[j+stride+6] +2)>>2);
+					dst[j + 6] = (uint8_t)((src[j+6] + src[j+7] + src[j+stride+6] + src[j+stride+7] +2)>>2);
+					dst[j + 7] = (uint8_t)((src[j+7] + src[j+8] + src[j+stride+7] + src[j+stride+8] +2)>>2);
+			}
 		}
 	}
 }

@@ -57,6 +57,7 @@
 #include "dct/fdct.h"
 #include "image/colorspace.h"
 #include "image/interpolate8x8.h"
+#include "utils/mem_align.h"
 #include "utils/mem_transfer.h"
 #include "utils/mbfunctions.h"
 #include "quant/quant.h"
@@ -110,12 +111,17 @@ int xvid_gbl_init(xvid_gbl_init_t * init)
 
 	cpu_flags = (init->cpu_flags & XVID_CPU_FORCE) ? init->cpu_flags : detect_cpu_flags();
 
+	if (init->sram_base && init->sram_size > 0) {
+		xvid_init_sram(init->sram_base, init->sram_size);
+	}
+
 	/* Initialize the function pointers */
 	init_vlc_tables();
 
 	/* Fixed Point Forward/Inverse DCT transformations */
 	fdct = fdct_int32;
-	idct = idct_int32;
+	// idct = idct_int32;
+	idct = simple_idct_c;
 
 	/* Only needed on PPC Altivec archs */
 	sadInit = NULL;
@@ -248,6 +254,12 @@ int xvid_gbl_init(xvid_gbl_init_t * init)
 	blocksum8     = blocksum8_c;
 
 	init_GMC(cpu_flags);
+
+	#if defined(ARCH_IS_ARM) || defined(__arm__)
+		if (cpu_flags & XVID_CPU_ASM) {
+			idct = idct_int32_arm;
+		}
+	#endif
 
 #if defined(_DEBUG)
     xvid_debug = init->debug;

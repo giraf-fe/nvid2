@@ -195,6 +195,8 @@ typedef struct {
 	int version;
 	unsigned int cpu_flags; /* [in:opt] zero = autodetect cpu; XVID_CPU_FORCE|{cpu features} = force cpu features */
 	int debug;     /* [in:opt] debug level */
+	void *sram_base; /* [in:opt] On-chip SRAM base address */
+	unsigned int sram_size; /* [in:opt] On-chip SRAM size */
 } xvid_gbl_init_t;
 
 

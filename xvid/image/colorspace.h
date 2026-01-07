@@ -97,33 +97,6 @@ packedFunc argbi_to_yv12_c;
 packedFunc yuyvi_to_yv12_c;
 packedFunc uyvyi_to_yv12_c;
 
-#if defined(ARCH_IS_IA32) || defined(ARCH_IS_X86_64)
-/* mmx */
-packedFunc bgr_to_yv12_mmx;
-packedFunc rgb_to_yv12_mmx;
-packedFunc bgra_to_yv12_mmx;
-packedFunc rgba_to_yv12_mmx;
-packedFunc yuyv_to_yv12_mmx;
-packedFunc uyvy_to_yv12_mmx;
-
-/* 3dnow */
-packedFunc yuyv_to_yv12_3dn;
-packedFunc uyvy_to_yv12_3dn;
-
-/* xmm */
-packedFunc yuyv_to_yv12_xmm;
-packedFunc uyvy_to_yv12_xmm;
-#endif
-
-#ifdef ARCH_IS_PPC
-packedFunc bgra_to_yv12_altivec_c;
-packedFunc abgr_to_yv12_altivec_c;
-packedFunc rgba_to_yv12_altivec_c;
-packedFunc argb_to_yv12_altivec_c;
-
-packedFunc yuyv_to_yv12_altivec_c;
-packedFunc uyvy_to_yv12_altivec_c;
-#endif
 
 /* yv12_to_xxx colorspace conversion functions (decoder) */
 
@@ -172,21 +145,6 @@ packedFunc yv12_to_argbi_c;
 packedFunc yv12_to_yuyvi_c;
 packedFunc yv12_to_uyvyi_c;
 
-#if defined(ARCH_IS_IA32) || defined(ARCH_IS_X86_64)
-/* mmx */
-packedFunc yv12_to_bgr_mmx;
-packedFunc yv12_to_bgra_mmx;
-packedFunc yv12_to_yuyv_mmx;
-packedFunc yv12_to_uyvy_mmx;
-
-packedFunc yv12_to_yuyvi_mmx;
-packedFunc yv12_to_uyvyi_mmx;
-#endif
-
-#ifdef ARCH_IS_PPC
-packedFunc yv12_to_yuyv_altivec_c;
-packedFunc yv12_to_uyvy_altivec_c;
-#endif
 
 typedef void (planarFunc) (
 				uint8_t * y_dst, uint8_t * u_dst, uint8_t * v_dst,
@@ -200,10 +158,6 @@ extern planarFuncPtr yv12_to_yv12;
 
 planarFunc yv12_to_yv12_c;
 
-#if defined(ARCH_IS_IA32) || defined(ARCH_IS_X86_64)
-planarFunc yv12_to_yv12_mmx;
-planarFunc yv12_to_yv12_xmm;
-#endif
 
 
 #endif							/* _COLORSPACE_H_ */

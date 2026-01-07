@@ -13,8 +13,8 @@ OBJDUMP = arm-none-eabi-objdump
 ZEHNFLAGS = --name "nvid2" --author "giraf-fe" --notice "mpeg4 video player" --240x320-support true \
 			--ndless-min 53 --ndless-max 62 --color-support true --uses-lcd-blit true
 # -Werror removed for now due to xvid warnings
-SHAREDFLAGS =  -Wall -Wextra -Wpedantic -marm -finline-functions -march=armv5te -mtune=arm926ej-s -mfpu=auto -O3 -flto -ffunction-sections -fdata-sections -mno-unaligned-access \
-			  -Ixvid -DARCH_IS_GENERIC -DARCH_IS_32BIT
+SHAREDFLAGS =  -Wall -Wextra -Wpedantic -marm -finline-functions -march=armv5te -mtune=arm926ej-s -mfpu=auto -O3 -flto -ffast-math -ffunction-sections -fdata-sections -mno-unaligned-access \
+			  -Ixvid -DARCH_IS_32BIT -DARCH_IS_ARM
 GCCFLAGS = $(SHAREDFLAGS) -Wno-incompatible-pointer-types -std=gnu2x
 GXXFLAGS = $(SHAREDFLAGS) -std=c++20
 LDFLAGS = -Wall -lnspireio

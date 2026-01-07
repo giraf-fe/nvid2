@@ -29,6 +29,7 @@
 
 #include "../portab.h"
 #include "../global.h"
+#include "../utils/mem_align.h"
 #include "bitstream.h"
 #include "zigzag.h"
 #include "vlc_codes.h"
@@ -47,7 +48,7 @@
 
 /* Initialized once during xvid_global call
  * RO access is thread safe */
-static REVERSE_EVENT DCT3D[2][4096];
+static REVERSE_EVENT *DCT3D[2];
 static VLC coeff_VLC[2][2][64][64];
 
 /* not really MB related, but VLCs are only available here */
@@ -86,6 +87,16 @@ init_vlc_tables(void)
 {
 	uint32_t i, j, k, intra, last, run,  run_esc, level, level_esc, escape, escape_len, offset;
 	int32_t l;
+    
+    /* Allocate DCT3D tables in SRAM (or fallback to SDRAM) */
+    if (DCT3D[0] == NULL) {
+        DCT3D[0] = (REVERSE_EVENT*)xvid_malloc_sram(sizeof(REVERSE_EVENT) * 4096, CACHE_LINE);
+        memset(DCT3D[0], 0, sizeof(REVERSE_EVENT) * 4096);
+    }
+    if (DCT3D[1] == NULL) {
+        DCT3D[1] = (REVERSE_EVENT*)xvid_malloc_sram(sizeof(REVERSE_EVENT) * 4096, CACHE_LINE);
+        memset(DCT3D[1], 0, sizeof(REVERSE_EVENT) * 4096);
+    }
 
 	for (intra = 0; intra < 2; intra++)
 		for (i = 0; i < 4096; i++)

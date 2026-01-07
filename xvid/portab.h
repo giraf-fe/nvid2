@@ -232,9 +232,11 @@ type * name = (type *) (((ptr_t) name##_storage+(alignment - 1)) & ~((ptr_t)(ali
 /*----------------------------------------------------------------------------
   | gcc ARM specific macros/functions
  *---------------------------------------------------------------------------*/
-#        define BSWAP(a) \
-	((a) = (((a) & 0xff) << 24)  | (((a) & 0xff00) << 8) | \
-	 (((a) >> 8) & 0xff00) | (((a) >> 24) & 0xff))
+#      if defined(__ARM_ARCH_6__) || defined(__ARM_ARCH_6J__) || defined(__ARM_ARCH_6K__) || defined(__ARM_ARCH_6Z__) || defined(__ARM_ARCH_6ZK__) || defined(__ARM_ARCH_6T2__) || defined(__ARM_ARCH_7__) || defined(__ARM_ARCH_7A__) || defined(__ARM_ARCH_7R__) || defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7EM__)
+#        define BSWAP(a) __asm__ ("rev %0, %0" : "+r"(a) : )
+#      else
+#        define BSWAP(a) ((a) = __builtin_bswap32(a))
+#      endif
 
 #        include <time.h>
 static __inline int64_t read_counter(void)

@@ -38,9 +38,5 @@ extern cbpFuncPtr calc_cbp;
 extern cbpFunc calc_cbp_c;
 extern cbpFunc calc_cbp_plain;
 
-#if defined(ARCH_IS_IA32) || defined(ARCH_IS_X86_64)
-extern cbpFunc calc_cbp_mmx;
-extern cbpFunc calc_cbp_sse2;
-#endif
 
 #endif /* _ENCODER_CBP_H_ */

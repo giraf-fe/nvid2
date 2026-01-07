@@ -127,79 +127,10 @@ INTERPOLATE8X8 interpolate8x8_halfpel_h_add_c;
 INTERPOLATE8X8 interpolate8x8_halfpel_v_add_c;
 INTERPOLATE8X8 interpolate8x8_halfpel_hv_add_c;
 
-#if defined(ARCH_IS_IA32) || defined(ARCH_IS_X86_64)
-INTERPOLATE8X8 interpolate8x8_halfpel_h_mmx;
-INTERPOLATE8X8 interpolate8x8_halfpel_v_mmx;
-INTERPOLATE8X8 interpolate8x8_halfpel_hv_mmx;
-
-INTERPOLATE8X4 interpolate8x4_halfpel_h_mmx;
-INTERPOLATE8X4 interpolate8x4_halfpel_v_mmx;
-INTERPOLATE8X4 interpolate8x4_halfpel_hv_mmx;
-
-INTERPOLATE8X8 interpolate8x8_halfpel_add_mmx;
-INTERPOLATE8X8 interpolate8x8_halfpel_h_add_mmx;
-INTERPOLATE8X8 interpolate8x8_halfpel_v_add_mmx;
-INTERPOLATE8X8 interpolate8x8_halfpel_hv_add_mmx;
-
-INTERPOLATE8X8 interpolate8x8_halfpel_h_xmm;
-INTERPOLATE8X8 interpolate8x8_halfpel_v_xmm;
-INTERPOLATE8X8 interpolate8x8_halfpel_hv_xmm;
-
-INTERPOLATE8X4 interpolate8x4_halfpel_h_xmm;
-INTERPOLATE8X4 interpolate8x4_halfpel_v_xmm;
-INTERPOLATE8X4 interpolate8x4_halfpel_hv_xmm;
-
-INTERPOLATE8X8 interpolate8x8_halfpel_add_xmm;
-INTERPOLATE8X8 interpolate8x8_halfpel_h_add_xmm;
-INTERPOLATE8X8 interpolate8x8_halfpel_v_add_xmm;
-INTERPOLATE8X8 interpolate8x8_halfpel_hv_add_xmm;
-
-INTERPOLATE8X8 interpolate8x8_halfpel_h_3dn;
-INTERPOLATE8X8 interpolate8x8_halfpel_v_3dn;
-INTERPOLATE8X8 interpolate8x8_halfpel_hv_3dn;
-
-INTERPOLATE8X4 interpolate8x4_halfpel_h_3dn;
-INTERPOLATE8X4 interpolate8x4_halfpel_v_3dn;
-INTERPOLATE8X4 interpolate8x4_halfpel_hv_3dn;
-
-INTERPOLATE8X8 interpolate8x8_halfpel_h_3dne;
-INTERPOLATE8X8 interpolate8x8_halfpel_v_3dne;
-INTERPOLATE8X8 interpolate8x8_halfpel_hv_3dne;
-
-INTERPOLATE8X4 interpolate8x4_halfpel_h_3dne;
-INTERPOLATE8X4 interpolate8x4_halfpel_v_3dne;
-INTERPOLATE8X4 interpolate8x4_halfpel_hv_3dne;
-#endif
-
-#ifdef ARCH_IS_IA64
-INTERPOLATE8X8 interpolate8x8_halfpel_h_ia64;
-INTERPOLATE8X8 interpolate8x8_halfpel_v_ia64;
-INTERPOLATE8X8 interpolate8x8_halfpel_hv_ia64;
-#endif
-
-#ifdef ARCH_IS_PPC
-INTERPOLATE8X8 interpolate8x8_halfpel_h_altivec_c;
-INTERPOLATE8X8 interpolate8x8_halfpel_v_altivec_c;
-INTERPOLATE8X8 interpolate8x8_halfpel_hv_altivec_c;
-
-INTERPOLATE8X8 interpolate8x8_halfpel_add_altivec_c;
-INTERPOLATE8X8 interpolate8x8_halfpel_h_add_altivec_c;
-INTERPOLATE8X8 interpolate8x8_halfpel_v_add_altivec_c;
-INTERPOLATE8X8 interpolate8x8_halfpel_hv_add_altivec_c;
-#endif
 
 INTERPOLATE8X8_AVG2 interpolate8x8_avg2_c;
 INTERPOLATE8X8_AVG4 interpolate8x8_avg4_c;
 
-#if defined(ARCH_IS_IA32) || defined(ARCH_IS_X86_64)
-INTERPOLATE8X8_AVG2 interpolate8x8_avg2_mmx;
-INTERPOLATE8X8_AVG4 interpolate8x8_avg4_mmx;
-#endif
-
-#ifdef ARCH_IS_PPC
-INTERPOLATE8X8_AVG2 interpolate8x8_avg2_altivec_c;
-INTERPOLATE8X8_AVG4 interpolate8x8_avg4_altivec_c;
-#endif
 
 INTERPOLATE_LOWPASS interpolate8x8_lowpass_h_c;
 INTERPOLATE_LOWPASS interpolate8x8_lowpass_v_c;
@@ -213,14 +144,6 @@ INTERPOLATE_LOWPASS_HV interpolate16x16_lowpass_hv_c;
 INTERPOLATE8X8_6TAP_LOWPASS interpolate8x8_6tap_lowpass_h_c;
 INTERPOLATE8X8_6TAP_LOWPASS interpolate8x8_6tap_lowpass_v_c;
 
-#if defined(ARCH_IS_IA32) || defined(ARCH_IS_X86_64)
-INTERPOLATE8X8_6TAP_LOWPASS interpolate8x8_6tap_lowpass_h_mmx;
-INTERPOLATE8X8_6TAP_LOWPASS interpolate8x8_6tap_lowpass_v_mmx;
-#endif
-
-#ifdef ARCH_IS_PPC
-INTERPOLATE8X8_6TAP_LOWPASS interpolate8x8_6tap_lowpass_h_altivec_c;
-#endif
 
 static __inline void
 interpolate8x4_switch(uint8_t * const cur,

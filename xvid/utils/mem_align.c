@@ -122,3 +122,52 @@ xvid_free(void *mem_ptr)
 	/* Free the memory */
 	free(ptr);
 }
+
+/* SRAM Context */
+static uint8_t *sram_pool_base = NULL;
+static unsigned int sram_pool_size = 0;
+static unsigned int sram_pool_usage = 0;
+
+void
+xvid_init_sram(void *base, unsigned int size)
+{
+	sram_pool_base = (uint8_t*)base;
+	sram_pool_size = size;
+	sram_pool_usage = 0;
+}
+
+void *
+xvid_malloc_sram(size_t size, uint8_t alignment)
+{
+	uint8_t *ptr = NULL;
+	uintptr_t aligned_usage;
+	uintptr_t aligned_addr;
+
+	if (!sram_pool_base) {
+		return xvid_malloc(size, alignment);
+	}
+
+	/* calculate alignment adjustment */
+	if (alignment == 0) alignment = 1;
+
+	/* current pointer */
+	aligned_addr = (uintptr_t)(sram_pool_base + sram_pool_usage);
+
+	/* align up */
+	if (alignment > 1) {
+		uintptr_t mask = alignment - 1;
+		if (aligned_addr & mask) {
+			aligned_addr = (aligned_addr + mask) & ~mask;
+		}
+	}
+
+	/* check overflow */
+	if ((aligned_addr + size) <= ((uintptr_t)sram_pool_base + sram_pool_size)) {
+		ptr = (uint8_t*)aligned_addr;
+		sram_pool_usage = (aligned_addr + size) - (uintptr_t)sram_pool_base;
+		return (void*)ptr;
+	}
+
+	/* Fallback to SDRAM if SRAM full */
+	return xvid_malloc(size, alignment);
+}

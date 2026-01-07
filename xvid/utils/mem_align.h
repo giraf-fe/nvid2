@@ -32,4 +32,8 @@ void *xvid_malloc(size_t size,
 				  uint8_t alignment);
 void xvid_free(void *mem_ptr);
 
+/* SRAM Allocator */
+void xvid_init_sram(void *base, unsigned int size);
+void *xvid_malloc_sram(size_t size, uint8_t alignment);
+
 #endif							/* _MEM_ALIGN_H_ */
