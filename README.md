@@ -19,6 +19,14 @@ ffmpeg command: \
  - `-b:v 500k`: sets the video bitrate to average 500 kbps. a minute of video would then be around 3.75 MB. this number can be increased or decreased, depending on your target quality
  - `-f m4v`: sets the file format as an elementary mpeg4 part 2 stream, required.
 
+## playing a video
+Opening nvid2 will place you into a terminal-like interface with 3 commands:
+ - ls: list stuff in directory
+ - cd: change directory
+ - play: play a video file (the thing you encoded with ffmpeg)
+
+When playing a video, you can press esc to stop.
+
 ## additional notes
  - **b frames are not supported.** this may change in the future
  - you can use ffmpeg's native mpeg4 encoder if you want, but it likely has a different set of flags
@@ -28,7 +36,7 @@ ffmpeg command: \
  - all the budget went to the video player architecture, the ui is horrendous. anyone is free to contribute a nicer ui or create a fork
 
 ## performance
-currently, 30 fps is achievable on an TI-Nspire CX II, better than the older nvid which used the more complex vp8 codec.
+currently, 30 fps and above is achievable on an TI-Nspire CX II, better than the older nvid which used the more complex vp8 codec.
 
 # License
 This project is licensed under GPLv2 (because of xvid).  
