@@ -52,39 +52,33 @@ void Terminal::run() {
         // read input
         nio_fgets(inputBuffer, sizeof(inputBuffer), &this->csl);
 
-        uart_puts(inputBuffer);
-
         std::string inputStr(inputBuffer);
         std::vector<std::string> args = splitInput(inputStr);
         if (args.empty()) {
-            uart_puts("No command entered\n");
             continue;
         }
-        for(const auto& arg : args) {
-            uart_puts(("Arg: " + arg + "\n").c_str());
-        }
-        
         const std::string& command = args[0];
         uart_puts(("Command: " + command + "\n").c_str());
 
         for(const auto& handler : this->commandHandlers) {
             if (handler.commandName == command) {
-                uart_puts(("Found handler for command: " + command + "\n").c_str());
                 std::string output = handler.handler(args);
-                uart_puts(("Output: " + output + "\n").c_str());
-                nio_fprintf(&this->csl, "%s\n", output.c_str());
+                // too long for fprintf
+                // nio_fprintf(&this->csl, "%s\n", output.c_str());
+                for(size_t i = 0; i < output.size(); i++) {
+                    nio_fputc(output[i], &this->csl);
+                }
+                nio_fputc('\n', &this->csl);
                 break;
-            } else {
-                uart_puts(("Handler " + handler.commandName + " does not match\n").c_str());
             }
         }
 
         // place exit/quit commands after handler loop
-        std::array<std::string, 2> exitCommands = {"exit", "quit"};
+        std::array<std::string, 3> exitCommands = {"exit", "quit", "q"};
         if (std::find(exitCommands.begin(), exitCommands.end(), command) != exitCommands.end()) {
-            uart_puts("Exiting terminal\n");
             break;
         }
         
+        memset(inputBuffer, 0, sizeof(inputBuffer));
     }
 }

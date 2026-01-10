@@ -9,7 +9,25 @@
 
 #include <nspireio/uart.hpp>
 
-VideoPlayer::VideoPlayer(const std::string& filename) {
+static void pwr_lcd(bool on)
+{
+    uint32_t control = *IO_LCD_CONTROL;
+    if (on)
+        control |= (1 << 0);
+    else
+        control &= ~(1 << 0);
+    *IO_LCD_CONTROL = control;
+
+}
+static void set_lcd_mode(unsigned int mode)
+{
+    uint32_t control = *IO_LCD_CONTROL;
+    control &= ~0b1110;
+    control |= mode << 1;
+    *IO_LCD_CONTROL = control;
+}
+
+VideoPlayer::VideoPlayer(const VideoPlayerOptions& options) : options(options) {
     // init timer
     frameTimer.stop();
     frameTimer.clearIRQ();
@@ -26,10 +44,10 @@ VideoPlayer::VideoPlayer(const std::string& filename) {
 
     // init lcd, decoder, file
     // open file
-    this->videoFile = fopen(filename.c_str(), "rb");
+    this->videoFile = fopen(options.filename.c_str(), "rb");
     if (!this->videoFile) {
         this->failedFlag = true;
-        this->errorMsg = "Failed to open video file: " + filename;
+        this->errorMsg = "Failed to open video file: " + options.filename;
         return;
     }
 
@@ -115,14 +133,17 @@ VideoPlayer::VideoPlayer(const std::string& filename) {
     }
     
     // init lcd
-    this->lcdScreenType = lcd_type();
-    if (!lcd_init(this->lcdScreenType)) {
-        this->failedFlag = true;
-        this->errorMsg = "Failed to initialize LCD";
-        return;
+    if (options.benchmarkMode && !options.blitDuringBenchmark) {
+        // skip
+    } else {
+        // this->lcdScreenType = lcd_type();
+        // if (!lcd_init(this->lcdScreenType)) {
+        //     this->failedFlag = true;
+        //     this->errorMsg = "Failed to initialize LCD";
+        //     return;
+        // }
+        
     }
-
-    
 
     this->failedFlag = false;
     this->errorMsg = "Successful initialization";
@@ -218,6 +239,13 @@ uint32_t VideoPlayer::CalculateFileReadAmount(uint32_t ticks) {
 }
 
 void VideoPlayer::play() {
+    // set lcd mode
+    void* oldBuf = REAL_SCREEN_BASE_ADDRESS;
+    // pwr_lcd(false);
+    set_lcd_mode(6); // RGB565 mode
+    // REAL_SCREEN_BASE_ADDRESS = this->decodedFramesSwapchain->operator[](0).data();
+    // pwr_lcd(true);
+
     uint32_t playbackStartTicks = this->frameTimer.getCurrentValue32();
 
     // play video
@@ -279,22 +307,24 @@ void VideoPlayer::play() {
             if (ticksToWait > 0) { 
                 // calculate sleep time in ms
                 uint32_t sleepMs = (ticksToWait * 1000) / timerHz;
-                if (sleepMs > 1) { // sleeping for 1 ms is ridiculous
+                if (sleepMs > 1 && !this->options.benchmarkMode) { // sleeping for 1 ms is ridiculous
                     msleep(sleepMs);
                 }
             } else {
-
                 // TODO: implement frame skipping
                 // uart_puts((std::string("Frame late by ") + std::to_string(-ticksToWait) + " ticks\n").c_str());
             }
         }
         // display frame
         uint32_t ticksBeforeBlit = frameTimer.getCurrentValue32();
-        lcd_blit(frameData.swapchainFramePtr->data(), this->lcdScreenType); frameCounter++;
+        if (!this->options.benchmarkMode || this->options.blitDuringBenchmark) {
+            // lcd_blit(frameData.swapchainFramePtr->data(), this->lcdScreenType); frameCounter++;
+            REAL_SCREEN_BASE_ADDRESS = frameData.swapchainFramePtr->data();
+            frameCounter++;
+        }
         uint32_t ticksAfterBlit = frameTimer.getCurrentValue32();
         this->lastFrameBlitTime = ticksBeforeBlit - ticksAfterBlit;
         profilingInfo.Frame_BlitTimes.push_back(this->lastFrameBlitTime);
-        // uart_puts((std::string("Blit took ") + std::to_string(ticksBeforeBlit - ticksAfterBlit) + " ticks\n").c_str());
 
         // release frame buffer back to swapchain
         if (!this->decodedFramesSwapchain->release(frameData.swapchainFramePtr)) {
@@ -311,6 +341,11 @@ void VideoPlayer::play() {
         uint32_t frameEndTicks = this->frameTimer.getCurrentValue32();
         profilingInfo.Frame_TotalTimes.push_back(frameStartTicks - frameEndTicks);
     }
+
+    // pwr_lcd(false);
+    // set_lcd_mode(6); // set back to normal
+    REAL_SCREEN_BASE_ADDRESS = oldBuf;
+    // pwr_lcd(true);
 }
 
 std::string VideoPlayer::dumpState() const {
@@ -375,5 +410,18 @@ std::string VideoPlayer::dumpState() const {
         )
     ) + "\n";
     state += "Total Frame Times: " + this->short_stats(this->profilingInfo.Frame_TotalTimes) + "\n";
+    state += "Average FPS: " + std::to_string(
+        [this]() -> float {
+            uint64_t totalTicks = 0;
+            for (const auto& t : this->profilingInfo.Frame_TotalTimes) {
+                totalTicks += t;
+            }
+            if (totalTicks == 0) {
+                return 0.0;
+            }
+            float totalSeconds = static_cast<float>(totalTicks) / static_cast<float>(timerHz);
+            return static_cast<float>(this->profilingInfo.Frame_TotalTimes.size()) / totalSeconds;
+        }()
+    ) + "\n";
     return state;
 }

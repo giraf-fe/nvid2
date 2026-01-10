@@ -257,7 +257,7 @@ int xvid_gbl_init(xvid_gbl_init_t * init)
 
 	#if defined(ARCH_IS_ARM) || defined(__arm__)
 		if (cpu_flags & XVID_CPU_ASM) {
-			idct = idct_int32_arm;
+			
 		}
 	#endif
 

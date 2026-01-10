@@ -239,9 +239,11 @@ static __inline void idctSparseCol (int16_t * const col)
 void simple_idct_c(int16_t * const block)
 {
     int i;
-    for(i=0; i<8; i++)
+    for(i=0; i<8; i++) {
         idctRowCondDC(block + i*8);
+    }
 
-    for(i=0; i<8; i++)
+    for(i=0; i<8; i++) {
         idctSparseCol(block + i);
+    }
 }

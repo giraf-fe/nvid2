@@ -12,9 +12,10 @@
 #include "SP804.hpp"
 
 #define SIZEOF_RGB565 2
+#define SIZEOF_RGB888 4
 #define FILE_READ_BUFFER_PADDING 32
 #define SIZEOF_FILE_READ_BUFFER (131072ul - FILE_READ_BUFFER_PADDING)
-#define FRAMES_IN_FLIGHT_COUNT 3
+#define FRAMES_IN_FLIGHT_COUNT 1
 #define SIZEOF_FRAME (SIZEOF_RGB565 * SCREEN_WIDTH * SCREEN_HEIGHT)
 #define CACHE_LINE_SIZE 32
 
@@ -74,7 +75,21 @@ struct FrameInFlightData {
     Framebuffer* swapchainFramePtr;
 };
 
+struct VideoPlayerOptions {
+    std::string filename;
+    bool benchmarkMode = false;
+    bool blitDuringBenchmark = false;
+    bool qualityDecoding = false;
+};
+struct MagicFrameBuffer {
+    void* data() {
+        return (void*)(0xA8000000);
+    }
+};
+
 class VideoPlayer {
+    VideoPlayerOptions options;  
+
     SRAMBuffer<0xA4000000, 0x20000, 0x20000> sramBuffer;
 
     FILE* videoFile = nullptr;
@@ -85,7 +100,8 @@ class VideoPlayer {
     size_t decoderReadAvailable = 0;
     std::unique_ptr<uint8_t[], AlignedDeleter> fileReadBuffer;
     
-    using FrameBufferType = std::array<uint8_t, SIZEOF_FRAME>;
+    // using FrameBufferType = std::array<uint8_t, SIZEOF_FRAME>;
+    using FrameBufferType = MagicFrameBuffer;
 
     std::unique_ptr<SwapChain<FrameBufferType, FRAMES_IN_FLIGHT_COUNT>, AlignedDeleter> 
         decodedFramesSwapchain;
@@ -154,7 +170,7 @@ class VideoPlayer {
     void fillFramesInFlightQueue();
 
 public:
-    VideoPlayer(const std::string& filename);
+    VideoPlayer(const VideoPlayerOptions& options);
     ~VideoPlayer();
 
     void play();

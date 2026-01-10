@@ -68,7 +68,12 @@ void VideoPlayer::fillFramesInFlightQueue() {
         xvid_dec_frame_t decFrame{};
         decFrame.version = XVID_VERSION;
         // Low-delay avoids B-frame reordering; we avoid discontinuity to prevent frame drops
-        decFrame.general = XVID_LOWDELAY | XVID_DEC_FAST;
+        if (this->options.qualityDecoding) {
+            decFrame.general = XVID_DEBLOCKUV | XVID_DEBLOCKY | XVID_DERINGUV | XVID_DERINGY;
+        } else {
+            decFrame.general = XVID_LOWDELAY | XVID_DEC_FAST;
+        }
+        decFrame.general |= (hadDiscontinuity ? XVID_DISCONTINUITY : 0);
         decFrame.bitstream = (void*)(this->fileReadBuffer.get() + this->decoderReadHead);
         decFrame.length = this->decoderReadAvailable;
 
