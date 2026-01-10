@@ -20,7 +20,7 @@ HandleInsufficientDataResult VideoPlayer::handleInsufficientData(
 
     // Always release the acquired buffer on any insufficient-data path.
     // (Callers only keep ownership when a decoded frame is pushed.)
-    this->decodedFramesSwapchain->release(frameBuffer);
+    this->decodedFramesSwapchain.release(frameBuffer);
     
     if (this->decoderReadAvailable == SIZEOF_FILE_READ_BUFFER) {
         // buffer full but no progress, error
@@ -62,24 +62,28 @@ void VideoPlayer::advanceReadHead(int bytesConsumed) {
 void VideoPlayer::fillFramesInFlightQueue() {
     bool hadDiscontinuity = false;
 
-    while (!this->framesInFlightQueue->full() && this->decodedFramesSwapchain->availableCount() > 0) {
+    while (!this->framesInFlightQueue.full() && this->decodedFramesSwapchain.availableCount() > 0) {
         uint32_t frameDecodeStartTicks = this->frameTimer.getCurrentValue32();
 
         xvid_dec_frame_t decFrame{};
         decFrame.version = XVID_VERSION;
-        // Low-delay avoids B-frame reordering; we avoid discontinuity to prevent frame drops
-        if (this->options.qualityDecoding) {
-            decFrame.general = XVID_DEBLOCKUV | XVID_DEBLOCKY | XVID_DERINGUV | XVID_DERINGY;
-        } else {
-            decFrame.general = XVID_LOWDELAY | XVID_DEC_FAST;
-        }
+        
+        decFrame.general = 
+            (this->options.fastDecoding ? XVID_DEC_FAST : 0) | 
+            (this->options.lowDelayMode ? XVID_LOWDELAY : 0) |
+            (this->options.deblockLuma ? XVID_DEBLOCKY : 0) |
+            (this->options.deblockChroma ? XVID_DEBLOCKUV : 0) |
+            (this->options.deringLuma ? XVID_DERINGY : 0) |
+            (this->options.deringChroma ? XVID_DERINGUV : 0)
+            ;
+
         decFrame.general |= (hadDiscontinuity ? XVID_DISCONTINUITY : 0);
         decFrame.bitstream = (void*)(this->fileReadBuffer.get() + this->decoderReadHead);
         decFrame.length = this->decoderReadAvailable;
 
-        decFrame.output.csp = XVID_CSP_RGB565;
+        decFrame.output.csp = this->options.use24bitRGB ? XVID_CSP_BGRA : XVID_CSP_RGB565;
 
-        FrameBufferType* frameBuffer = this->decodedFramesSwapchain->acquire();
+        FrameBufferType* frameBuffer = this->decodedFramesSwapchain.acquire();
         if(!frameBuffer) {
             // should not happen due to while condition
             this->failedFlag = true;
@@ -87,7 +91,9 @@ void VideoPlayer::fillFramesInFlightQueue() {
             return;
         }
         decFrame.output.plane[0] = frameBuffer->data();
-        decFrame.output.stride[0] = SCREEN_WIDTH * SIZEOF_RGB565;
+        decFrame.output.stride[0] = 
+            (this->options.preRotatedVideo ? SCREEN_HEIGHT : SCREEN_WIDTH) * 
+            (this->options.use24bitRGB ? SIZEOF_RGB888 : SIZEOF_RGB565);
 
         xvid_dec_stats_t decStats{};
         decStats.version = XVID_VERSION;
@@ -137,7 +143,7 @@ void VideoPlayer::fillFramesInFlightQueue() {
             }
 
             // successful decode
-            this->framesInFlightQueue->push(FrameInFlightData<FrameBufferType>{
+            this->framesInFlightQueue.push(FrameInFlightData<FrameBufferType>{
                 .timingTicks = 
                 (uint64_t)decStats.data.vop.time_base * this->videoTimingInfo.timeIncrementResolution +
                 (uint64_t)decStats.data.vop.time_increment,
@@ -170,7 +176,7 @@ void VideoPlayer::fillFramesInFlightQueue() {
             if(this->failedFlag) {
                 return;
             }
-            this->decodedFramesSwapchain->release(frameBuffer);
+            this->decodedFramesSwapchain.release(frameBuffer);
             hadDiscontinuity = false;
             continue;
         }
@@ -191,7 +197,7 @@ void VideoPlayer::fillFramesInFlightQueue() {
                 continue;
             }
             // ignore nvop frames
-            this->decodedFramesSwapchain->release(frameBuffer);
+            this->decodedFramesSwapchain.release(frameBuffer);
             
             // advance read head
             advanceReadHead(bytesConsumed);

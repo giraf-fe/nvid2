@@ -2,10 +2,31 @@
 new ti nspire video player using ndless + MPEG-4 Part 2 codec \
 inspired by the older project [nvid](https://github.com/pbfy0/nvid)
 
+**Current state: Only CX-II compatible, HW-W+** \
+Includes the II-T and CAS models
+
 uses a stripped down version of xvid, arm assembly paths may come soon to improve performance
 
 ffmpeg command: \
 `ffmpeg -i YOUR_VIDEO.extension -map 0:0 -c:v libxvid -bf 0 -gmc 0 -pix_fmt yuv420p -vf "scale=320:240,fps=24" -me_quality 6 -mbd rd -trellis 1 -b:v 500k -f m4v YOUR-VIDEO.tns`
+
+### Pre-rotated videos (performance tip)
+Since the display on the CX-II is rotated 90 degrees, pre-rotating the video skips needing to rotate 
+the decoded output at runtime. This can save ~3.2ms per frame at 16bpp, double at 24bpp.
+
+Use the option `-prv` to tell the player that the video is pre-rotated.
+
+For a clockwise 90° rotation, use FFmpeg's `transpose=1` and swap the scale to **240x320**:
+
+`ffmpeg -i YOUR_VIDEO.extension -map 0:0 -c:v libxvid -bf 0 -gmc 0 -pix_fmt yuv420p -vf "transpose=1,scale=240:320,fps=24" -me_quality 6 -mbd rd -trellis 1 -b:v 500k -f m4v YOUR-VIDEO.tns`
+
+Then play it with `-prv` **and** `Nmfb` (The magic framebuffer is no longer needed for hardware rotation):
+
+`play YOUR-VIDEO.tns -Nmfb -prv`
+
+Notes:
+ - `-prv` expects the encoded dimensions to be **240x320** (width x height). If you feed it 320x240, it will error.
+ - `transpose` has multiple modes; if `transpose=1` rotates the “wrong way” for your source, adjust the transpose mode accordingly.
 ## parameter explanations:
  - `-map 0:0`: the video stream is usually the first input stream, choose something else if ffprobe says something different
  - `-c:v libxvid`: uses the libxvid encoder for mpeg4 part 2 video. the project uses the xvid decoder
@@ -27,16 +48,53 @@ Opening nvid2 will place you into a terminal-like interface with 3 commands:
 
 When playing a video, you can press esc to stop.
 
-## additional notes
- - **b frames are not supported.** this may change in the future
+### `play` options
+Usage:
+ - `play <filename> [options...]`
+
+Flags (later flags override earlier ones):
+ - `-b`: benchmark mode (no video output)
+ - `-bdb`: blit frames even in benchmark mode
+
+Output / framebuffer mode:
+ - `-mfb`: use the magic framebuffer (**default: on**)
+ - `-24bpp`: use 24-bit RGB framebuffer (higher bandwidth; incompatible with magic framebuffer)
+ - `-lcdblit`: use Ndless's LCD blit API (incompatible with magic framebuffer and 24bpp)
+ - `-prv`: pre-rotated video (no rotation during blit; video must be pre-rotated to 240x320)
+
+Decode quality / latency:
+ - `-fd`: fast decoding (**default: on**) (lower CPU usage, lower quality)
+ - `-ld`: low-delay mode (**default: on**) (reduces latency; disables b-frame support)
+ - `-dbl` / `-dbc`: enable luma / chroma deblocking filter
+ - `-drl` / `-drc`: enable luma / chroma deringing filter
+
+Turning off defaults:
+ - Any option that is on by default can be disabled with the opposite flag form: `-N...` (example: `-Nmfb` disables the magic framebuffer).
+
+Incompatibilities enforced by the player:
+ - `-mfb` cannot be combined with `-24bpp` or `-lcdblit`.
+ - `-prv` cannot be combined with `-mfb` or `-lcdblit`.
+
+Examples:
+ - Normal playback (defaults): `play video.tns`
+ - Benchmark decode only: `play video.tns -b`
+ - Benchmark but still show frames: `play video.tns -b -bdb`
+ - Set the LCD to use 24-bit color: `play video.tns -24bpp`
+ - Pre-rotated playback (skip rotation work): `play video.tns -Nmfb -prv`
+ - All deblock + dering filters (very slow): `play video.tns -dbl -dbc -drl -drc`
+
+## Additional notes
+ - **b frames are not supported.** The decode loop does not support the extra logic required for B-frames. This may change in the future.
  - you can use ffmpeg's native mpeg4 encoder if you want, but it likely has a different set of flags
  - if you set the output file's file extension as *.m4v, the container format will change and decoding will fail. the -f flag makes it a raw stream, *.tns isn't recognized by ffmpeg so it ignores it
- - the decoder disables all post processing effects to increase decode speed (no deblocking or deringing). 
  - try out a two pass decode on your video
  - all the budget went to the video player architecture, the ui is horrendous. anyone is free to contribute a nicer ui or create a fork
 
-## performance
-currently, 30 fps and above is achievable on an TI-Nspire CX II, better than the older nvid which used the more complex vp8 codec.
+## Performance
+Currently, 30 fps and above is quite easily achievable, better than the older nvid which used the more complex vp8 codec.
+60 fps realtime may become possible in the future when overclocked; YV12 -> RGB565 conversion currently takes the most
+time per frame. For some odd reason, using 24bpp color with pre-rotated video is actually faster than RGB565. Xvid's 
+conversion function for RGB565 is probably not that well optimized.
 
 # License
 This project is licensed under GPLv2 (because of xvid).  

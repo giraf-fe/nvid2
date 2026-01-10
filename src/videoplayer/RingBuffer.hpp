@@ -50,17 +50,31 @@ public:
 
 template <typename FrameBuffer, size_t Count>
 class SwapChain {
-    std::array<FrameBuffer, Count> buffers{};
-    RingBuffer<size_t, Count, true> availableIndices;
-    
-public:
-    SwapChain() {
-        // Initialize with all buffer indices available
-        for (size_t i = 0; i < Count; i++) {
-            availableIndices.buffer[i] = i;
+    std::array<FrameBuffer*, Count> buffers{};
+    RingBuffer<size_t, Count> availableIndices;
+
+    void initializeAvailableIndices() {
+        // reset ring buffer to empty then push all indices
+        availableIndices = RingBuffer<size_t, Count>();
+        for (size_t i = 0; i < Count; ++i) {
+            availableIndices.push(i);
         }
     }
-    
+
+public:
+    SwapChain() {
+        initializeAvailableIndices();
+    }
+
+    SwapChain(const std::array<FrameBuffer*, Count>& buffers) : buffers(buffers) {
+        initializeAvailableIndices();
+    }
+
+    void setBuffers(const std::array<FrameBuffer*, Count>& buffersIn) {
+        buffers = buffersIn;
+        initializeAvailableIndices();
+    }
+
     // Acquire a buffer for rendering/writing
     FrameBuffer* acquire() {
         bool success;
@@ -68,35 +82,42 @@ public:
         if (!success) {
             return nullptr;
         }
-        return &buffers[index];
+        return buffers[index];
     }
-    
+
     // Present/release a buffer back to the available pool
     bool release(FrameBuffer* buffer) {
         if (!buffer) return false;
-        
-        // Calculate index from pointer
-        size_t index = buffer - buffers.data();
-        if (index >= Count) {
-            return false;
+
+        // Find the buffer's index explicitly instead of relying on pointer arithmetic
+        size_t index = Count;
+        for (size_t i = 0; i < Count; ++i) {
+            if (buffers[i] == buffer) {
+                index = i;
+                break;
+            }
         }
-        
+
+        if (index == Count) {
+            return false; // buffer not part of the swapchain
+        }
+
         return availableIndices.push(index);
     }
-    
+
     // Get buffer by index (for direct access if needed)
-    FrameBuffer& operator[](size_t index) {
+    FrameBuffer* operator[](size_t index) {
         return buffers[index];
     }
-    
-    const FrameBuffer& operator[](size_t index) const {
+
+    const FrameBuffer* operator[](size_t index) const {
         return buffers[index];
     }
-    
+
     size_t availableCount() const {
         return availableIndices.size();
     }
-    
+
     constexpr size_t capacity() const {
         return Count;
     }
