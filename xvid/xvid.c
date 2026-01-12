@@ -218,7 +218,8 @@ int xvid_gbl_init(xvid_gbl_init_t * init)
 
 	/* All colorspace transformation functions YV12->User format */
 	yv12_to_rgb555  = yv12_to_rgb555_c;
-	yv12_to_rgb565  = yv12_to_rgb565_c;
+	//yv12_to_rgb565  = yv12_to_rgb565_c;
+	yv12_to_rgb565  = yv12_to_rgb565_concept;
 	yv12_to_rgb     = yv12_to_rgb_c;
 	yv12_to_bgr     = yv12_to_bgr_c;
 	yv12_to_bgra    = yv12_to_bgra_c;

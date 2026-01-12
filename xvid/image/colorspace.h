@@ -35,12 +35,17 @@ void colorspace_init(void);
 
 
 /* colorspace conversion function (encoder) */
+#ifdef __cplusplus
+#define RESTRICT
+#else
+#define RESTRICT restrict
+#endif
 
-typedef void (packedFunc) (uint8_t * x_ptr,
+typedef void (packedFunc) (uint8_t *RESTRICT x_ptr,
 								 int x_stride,
-								 uint8_t * y_src,
-								 uint8_t * v_src,
-								 uint8_t * u_src,
+								 uint8_t *RESTRICT y_src,
+								 uint8_t *RESTRICT v_src,
+								 uint8_t *RESTRICT u_src,
 								 int y_stride,
 								 int uv_stride,
 								 int width,
@@ -158,6 +163,18 @@ extern planarFuncPtr yv12_to_yv12;
 
 planarFunc yv12_to_yv12_c;
 
-
+void init_yv12_to_rgb565_tables	(void);
+void yv12_to_rgb565_concept(
+    uint8_t *RESTRICT x_ptr,
+    int x_stride,
+    uint8_t *RESTRICT y_src,
+    uint8_t *RESTRICT v_src,
+    uint8_t *RESTRICT u_src,
+    int y_stride,
+    int uv_stride,
+    int width,
+    int height,
+    int vflip
+);
 
 #endif							/* _COLORSPACE_H_ */

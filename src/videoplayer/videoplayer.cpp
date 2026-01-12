@@ -7,7 +7,48 @@
 #include <new>
 #include <algorithm>
 
+#include <cstdio>
+
 #include <nspireio/uart.hpp>
+
+namespace {
+    // xvid global init singleton
+
+    // constexpr size_t kXvidPreallocatedBufferSize = 1024 * 1024; // 1 MB
+    // std::unique_ptr<uint8_t[], AlignedDeleter> g_xvidPreallocatedBuffer;
+    constexpr size_t kXvidPreallocatedBufferSize = 0x20000; // 128 KB
+    SRAMBuffer<0xA4000000, 0x20000, 0x20000> g_xvidPreallocatedBuffer; // 128 KB
+    bool g_xvidGlobalInitialized = false;
+
+    bool EnsureXvidGlobalInitialized(std::string& errorMsg) {
+        if (g_xvidGlobalInitialized) {
+            return true;
+        }
+
+        // g_xvidPreallocatedBuffer = std::unique_ptr<uint8_t[], AlignedDeleter>(
+        //     static_cast<uint8_t*>(AlignedAllocate(CACHE_LINE_SIZE, kXvidPreallocatedBufferSize))
+        // );
+        
+        if (!g_xvidPreallocatedBuffer.isValid()) {
+            errorMsg = "Failed to allocate Xvid preallocated buffer";
+            return false;
+        }
+
+        xvid_gbl_init_t xvid_gbl_init{};
+        xvid_gbl_init.version = XVID_VERSION;
+        xvid_gbl_init.sram_base = (void*)g_xvidPreallocatedBuffer.get();
+        xvid_gbl_init.sram_size = kXvidPreallocatedBufferSize;
+
+        const int rc = xvid_global(NULL, XVID_GBL_INIT, &xvid_gbl_init, NULL);
+        if (rc < 0) {
+            errorMsg = "xvid_global(XVID_GBL_INIT) failed: " + std::to_string(rc);
+            return false;
+        }
+
+        g_xvidGlobalInitialized = true;
+        return true;
+    }
+}
 
 static void pwr_lcd(bool on)
 {
@@ -75,11 +116,14 @@ VideoPlayer::VideoPlayer(const VideoPlayerOptions& options) : options(options) {
     }
 
     // xvid global init
-    xvid_gbl_init_t xvid_gbl_init{};
-    xvid_gbl_init.version = XVID_VERSION;
-    xvid_gbl_init.sram_base = (void*)this->sramBuffer.get();
-    xvid_gbl_init.sram_size = 0x20000;
-    xvid_global(NULL, XVID_GBL_INIT, &xvid_gbl_init, NULL);
+    {
+        std::string xvidInitError;
+        if (!EnsureXvidGlobalInitialized(xvidInitError)) {
+            this->failedFlag = true;
+            this->errorMsg = xvidInitError;
+            return;
+        }
+    }
     
     // xvid decoder init
     xvid_dec_create_t xvid_dec_create{};
@@ -432,7 +476,7 @@ void VideoPlayer::WaitForNextFrame(uint32_t timingTicks, uint32_t playbackStartT
     uint32_t targetTimerTicks = playbackStartTicks - targetTicksElapsed + this->lastFrameBlitTime;
     {
         constexpr uint32_t marginOfErrorTicks = timerHz / (1000); // 1 ms margin of error
-        constexpr uint32_t attemptReadThreshold = SIZEOF_FILE_READ_BUFFER / 4; // try read if less than 1/4 buffer free
+        constexpr uint32_t attemptReadThreshold = SIZEOF_FILE_READ_BUFFER / 2; // try read if less than 1/2 buffer free
         int32_t ticksToWait = frameTimer.getCurrentValue32() - targetTimerTicks;
         
         // if there is extra time to do other processing, try to fill read buffer

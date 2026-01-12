@@ -15,7 +15,7 @@
 #define SIZEOF_RGB565 2
 #define SIZEOF_RGB888 4
 #define FILE_READ_BUFFER_PADDING 32
-#define SIZEOF_FILE_READ_BUFFER (131072ul - FILE_READ_BUFFER_PADDING)
+#define SIZEOF_FILE_READ_BUFFER (262144ul - FILE_READ_BUFFER_PADDING)
 #define FRAMES_IN_FLIGHT_COUNT 2
 #define FRAME_TOTAL_PIXELS (SCREEN_WIDTH * SCREEN_HEIGHT)
 #define CACHE_LINE_SIZE 32
@@ -118,8 +118,6 @@ struct StandardFrameBuffer: public FrameBufferType {
 
 class VideoPlayer {
     VideoPlayerOptions options;  
-
-    SRAMBuffer<0xA4000000, 0x20000, 0x20000> sramBuffer;
 
     FILE* videoFile = nullptr;
     bool fileEndReached = false;

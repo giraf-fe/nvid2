@@ -92,8 +92,8 @@ static int32_t R_V_tab[256];
 
 #define MAKE_COLORSPACE(NAME,SIZE,PIXELS,VPIXELS,FUNC,C1,C2,C3,C4) \
 void	\
-NAME(uint8_t * x_ptr, int x_stride,	\
-				 uint8_t * y_ptr, uint8_t * u_ptr, uint8_t * v_ptr,	\
+NAME(uint8_t *restrict x_ptr, int x_stride,	\
+				 uint8_t *restrict y_ptr, uint8_t *restrict u_ptr, uint8_t *restrict v_ptr,	\
 				 int y_stride, int uv_stride,	\
 				 int width, int height, int vflip)	\
 {	\
@@ -535,4 +535,6 @@ colorspace_init(void)
 		G_V_tab[i] = FIX_OUT(G_V_OUT) * (i - V_ADD_OUT);
 		R_V_tab[i] = FIX_OUT(R_V_OUT) * (i - V_ADD_OUT);
 	}
+
+	init_yv12_to_rgb565_tables();
 }
