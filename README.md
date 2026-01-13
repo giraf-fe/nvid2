@@ -92,9 +92,12 @@ Examples:
 
 ## Performance
 Currently, 30 fps and above is quite easily achievable, better than the older nvid which used the more complex vp8 codec.
-60 fps realtime may become possible in the future when overclocked; YV12 -> RGB565 conversion currently takes the most
+60 fps realtime may become possible in the future when overclocked; ~~YV12 -> RGB565 conversion currently takes the most
 time per frame. For some odd reason, using 24bpp color with pre-rotated video is actually faster than RGB565. Xvid's 
-conversion function for RGB565 is probably not that well optimized.
+conversion function for RGB565 is probably not that well optimized.~~
+This has been fixed by using a custom conversion function. The currently known fastest playback would be to use the magic framebuffer (framebuffer is in sram, prevents write latency into sdram) at 16bpp, encoded with MPEG-4 Part 2 SP (simple profile).
+ 
+ 
 
 # License
 This project is licensed under GPLv2 (because of xvid).  
