@@ -165,6 +165,10 @@ typedef struct
 	int is_edged[2];
 
 	int num_threads;
+
+	/* SRAM scratch buffers for macroblock decoding */
+	int16_t *sram_scratch_block;
+	int16_t *sram_scratch_data;
 }
 DECODER;
 

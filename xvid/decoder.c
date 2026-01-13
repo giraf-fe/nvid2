@@ -109,7 +109,7 @@ decoder_resize(DECODER * dec)
     goto memory_error;
 
 	dec->mbs =
-		xvid_malloc(sizeof(MACROBLOCK) * dec->mb_width * dec->mb_height,
+		xvid_malloc_sram(sizeof(MACROBLOCK) * dec->mb_width * dec->mb_height,
 					CACHE_LINE);
 	if (dec->mbs == NULL)
 	  goto memory_error;
@@ -117,7 +117,7 @@ decoder_resize(DECODER * dec)
 
 	/* For skip MB flag */
 	dec->last_mbs =
-		xvid_malloc(sizeof(MACROBLOCK) * dec->mb_width * dec->mb_height,
+		xvid_malloc_sram(sizeof(MACROBLOCK) * dec->mb_width * dec->mb_height,
 					CACHE_LINE);
 	if (dec->last_mbs == NULL)
 	  goto memory_error;
@@ -125,7 +125,7 @@ decoder_resize(DECODER * dec)
 
 	/* nothing happens if that fails */
 	dec->qscale =
-		xvid_malloc(sizeof(int) * dec->mb_width * dec->mb_height, CACHE_LINE);
+		xvid_malloc_sram(sizeof(int) * dec->mb_width * dec->mb_height, CACHE_LINE);
 	
 	if (dec->qscale)
 		memset(dec->qscale, 0, sizeof(int) * dec->mb_width * dec->mb_height);
@@ -163,10 +163,23 @@ decoder_create(xvid_dec_create_t * create)
 
   memset(dec, 0, sizeof(DECODER));
 
-  dec->mpeg_quant_matrices = xvid_malloc(sizeof(uint16_t) * 64 * 8, CACHE_LINE);
+  dec->mpeg_quant_matrices = xvid_malloc_sram(sizeof(uint16_t) * 64 * 8, CACHE_LINE);
   if (dec->mpeg_quant_matrices == NULL) {
     xvid_free(dec);
     return XVID_ERR_MEMORY;
+  }
+
+  /* Allocate SRAM scratch buffers for macroblock decoding */
+  /* 6 blocks * 64 coefficients * sizeof(int16_t) */
+  dec->sram_scratch_block = xvid_malloc_sram(6 * 64 * sizeof(int16_t), CACHE_LINE);
+  dec->sram_scratch_data = xvid_malloc_sram(6 * 64 * sizeof(int16_t), CACHE_LINE);
+  
+  if (dec->sram_scratch_block == NULL || dec->sram_scratch_data == NULL) {
+	  xvid_free(dec->mpeg_quant_matrices);
+	  xvid_free(dec->sram_scratch_block);
+	  xvid_free(dec->sram_scratch_data);
+	  xvid_free(dec);
+	  return XVID_ERR_MEMORY;
   }
 
   create->handle = dec;
@@ -235,6 +248,8 @@ decoder_destroy(DECODER * dec)
   image_destroy(&dec->qtmp, dec->edged_width, dec->edged_height);
   image_destroy(&dec->cur, dec->edged_width, dec->edged_height);
   xvid_free(dec->mpeg_quant_matrices);
+  xvid_free(dec->sram_scratch_block);
+  xvid_free(dec->sram_scratch_data);
   xvid_free(dec);
 
   write_timer();
@@ -259,8 +274,10 @@ decoder_mbintra(DECODER * dec,
         const unsigned int bound)
 {
 
-  DECLARE_ALIGNED_MATRIX(block, 6, 64, int16_t, CACHE_LINE);
-  DECLARE_ALIGNED_MATRIX(data, 6, 64, int16_t, CACHE_LINE);
+  int16_t *block = dec->sram_scratch_block;
+  int16_t *data = dec->sram_scratch_data;
+  
+  memset(block, 0, 6 * 64 * sizeof(int16_t)); /* clear */
 
   uint32_t stride = dec->edged_width;
   uint32_t stride2 = stride / 2;
@@ -273,7 +290,7 @@ decoder_mbintra(DECODER * dec,
   pU_Cur = dec->cur.u + (y_pos << 3) * stride2 + (x_pos << 3);
   pV_Cur = dec->cur.v + (y_pos << 3) * stride2 + (x_pos << 3);
 
-  memset(block, 0, 6 * 64 * sizeof(int16_t)); /* clear */
+  /* block cleared above */
 
   for (i = 0; i < 6; i++) {
     uint32_t iDcScaler = get_dc_scaler(iQuant, i < 4);
@@ -355,7 +372,7 @@ decoder_mb_decode(DECODER * dec,
         uint8_t * pV_Cur,
         const MACROBLOCK * pMB)
 {
-  DECLARE_ALIGNED_MATRIX(data, 6, 64, int16_t, CACHE_LINE);
+  int16_t *data = dec->sram_scratch_data;
 
   int stride = dec->edged_width;
   int i;
