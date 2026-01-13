@@ -22,8 +22,8 @@ static uint8_t* g_Clamp;
 enum { CLAMP_CENTER = 1024, CLAMP_SIZE = 2048 };
 
 void init_yv12_to_rgb565_tables(void) {
-    // allocate tables in sram
-    uint8_t* sramTable = xvid_malloc_sram(5 * 256 + CLAMP_SIZE, CACHE_LINE);
+    // allocate tables in sram: 5 * 256 int32_t values + 2048 byte clamp table
+    uint8_t* sramTable = xvid_malloc_sram(5 * 256 * sizeof(int32_t) + CLAMP_SIZE, CACHE_LINE);
     g_Ytab = (int32_t*)sramTable;
     g_UtoB = g_Ytab + 256;
     g_UtoG = g_UtoB + 256;

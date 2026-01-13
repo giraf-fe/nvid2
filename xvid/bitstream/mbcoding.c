@@ -36,6 +36,7 @@
 #include "mbcoding.h"
 
 #include "../utils/mbfunctions.h"
+#include "../utils/sram_tables.h"
 
 #ifdef _DEBUG
 # include "../motion/estimation.h"
@@ -849,9 +850,9 @@ get_mcbpc_intra(Bitstream * bs)
 	index = BitstreamShowBits(bs, 9);
 	index >>= 3;
 
-	BitstreamSkip(bs, mcbpc_intra_table[index].len);
+	BitstreamSkip(bs, sram_mcbpc_intra_table[index].len);
 
-	return mcbpc_intra_table[index].code;
+	return sram_mcbpc_intra_table[index].code;
 
 }
 
@@ -863,9 +864,9 @@ get_mcbpc_inter(Bitstream * bs)
 
 	index = MIN(BitstreamShowBits(bs, 9), 256);
 
-	BitstreamSkip(bs, mcbpc_inter_table[index].len);
+	BitstreamSkip(bs, sram_mcbpc_inter_table[index].len);
 
-	return mcbpc_inter_table[index].code;
+	return sram_mcbpc_inter_table[index].code;
 
 }
 
@@ -877,8 +878,8 @@ get_cbpy(Bitstream * bs,
 	int cbpy;
 	uint32_t index = BitstreamShowBits(bs, 6);
 
-	BitstreamSkip(bs, cbpy_table[index].len);
-	cbpy = cbpy_table[index].code;
+	BitstreamSkip(bs, sram_cbpy_table[index].len);
+	cbpy = sram_cbpy_table[index].code;
 
 	if (!intra)
 		cbpy = 15 - cbpy;
@@ -900,20 +901,20 @@ get_mv_data(Bitstream * bs)
 
 	if (index >= 512) {
 		index = (index >> 8) - 2;
-		BitstreamSkip(bs, TMNMVtab0[index].len);
-		return TMNMVtab0[index].code;
+		BitstreamSkip(bs, sram_TMNMVtab0[index].len);
+		return sram_TMNMVtab0[index].code;
 	}
 
 	if (index >= 128) {
 		index = (index >> 2) - 32;
-		BitstreamSkip(bs, TMNMVtab1[index].len);
-		return TMNMVtab1[index].code;
+		BitstreamSkip(bs, sram_TMNMVtab1[index].len);
+		return sram_TMNMVtab1[index].code;
 	}
 
 	index -= 4;
 
-	BitstreamSkip(bs, TMNMVtab2[index&0x7f].len);
-	return TMNMVtab2[index&0x7f].code;
+	BitstreamSkip(bs, sram_TMNMVtab2[index&0x7f].len);
+	return sram_TMNMVtab2[index&0x7f].code;
 
 }
 

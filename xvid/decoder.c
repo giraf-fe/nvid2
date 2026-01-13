@@ -60,10 +60,11 @@
 #include "image/colorspace.h"
 #include "image/postprocessing.h"
 #include "utils/mem_align.h"
+#include "utils/sram_tables.h"
 
 #define DIV2ROUND(n)  (((n)>>1)|((n)&1))
 #define DIV2(n)       ((n)>>1)
-#define DIVUVMOV(n) (((n) >> 1) + roundtab_79[(n) & 0x3]) //
+#define DIVUVMOV(n) (((n) >> 1) + sram_roundtab_79[(n) & 0x3]) //
 
 static int
 decoder_resize(DECODER * dec)
@@ -191,6 +192,7 @@ decoder_create(xvid_dec_create_t * create)
   init_timer();
   init_postproc(&dec->postproc);
   init_mpeg_matrix(dec->mpeg_quant_matrices);
+  init_sram_tables();
 
   /* For B-frame support (used to save reference frame's time */
   dec->frames = 0;
@@ -514,8 +516,8 @@ decoder_mbinter(DECODER * dec,
         uv_dy /= 2;
       }
     }
-    uv_dx = (uv_dx >> 1) + roundtab_79[uv_dx & 0x3];
-    uv_dy = (uv_dy >> 1) + roundtab_79[uv_dy & 0x3];
+    uv_dx = (uv_dx >> 1) + sram_roundtab_79[uv_dx & 0x3];
+    uv_dy = (uv_dy >> 1) + sram_roundtab_79[uv_dy & 0x3];
 
     if (dec->quarterpel)
       interpolate16x16_quarterpel(dec->cur.y, dec->refn[ref].y, dec->qtmp.y, dec->qtmp.y + 64,
@@ -545,8 +547,8 @@ decoder_mbinter(DECODER * dec,
       uv_dy = mv[0].y + mv[1].y + mv[2].y + mv[3].y;
     }
 
-    uv_dx = (uv_dx >> 3) + roundtab_76[uv_dx & 0xf];
-    uv_dy = (uv_dy >> 3) + roundtab_76[uv_dy & 0xf];
+    uv_dx = (uv_dx >> 3) + sram_roundtab_76[uv_dx & 0xf];
+    uv_dy = (uv_dy >> 3) + sram_roundtab_76[uv_dy & 0xf];
 
     if (dec->quarterpel) {
       interpolate8x8_quarterpel(dec->cur.y, dec->refn[0].y , dec->qtmp.y, dec->qtmp.y + 64,
@@ -1196,10 +1198,10 @@ decoder_bf_interpolate_mbinter(DECODER * dec,
       }
     }
 
-    uv_dx = (uv_dx >> 1) + roundtab_79[uv_dx & 0x3];
-    uv_dy = (uv_dy >> 1) + roundtab_79[uv_dy & 0x3];
-    b_uv_dx = (b_uv_dx >> 1) + roundtab_79[b_uv_dx & 0x3];
-    b_uv_dy = (b_uv_dy >> 1) + roundtab_79[b_uv_dy & 0x3];
+    uv_dx = (uv_dx >> 1) + sram_roundtab_79[uv_dx & 0x3];
+    uv_dy = (uv_dy >> 1) + sram_roundtab_79[uv_dy & 0x3];
+    b_uv_dx = (b_uv_dx >> 1) + sram_roundtab_79[b_uv_dx & 0x3];
+    b_uv_dy = (b_uv_dy >> 1) + sram_roundtab_79[b_uv_dy & 0x3];
 
   } else {
 	  if (dec->quarterpel) { /* for qpel the /2 shall be done before summation. We've done it right in the encoder in the past. */
@@ -1228,10 +1230,10 @@ decoder_bf_interpolate_mbinter(DECODER * dec,
       b_uv_dy = pMB->b_mvs[0].y + pMB->b_mvs[1].y + pMB->b_mvs[2].y + pMB->b_mvs[3].y;
     }
 
-    uv_dx = (uv_dx >> 3) + roundtab_76[uv_dx & 0xf];
-    uv_dy = (uv_dy >> 3) + roundtab_76[uv_dy & 0xf];
-    b_uv_dx = (b_uv_dx >> 3) + roundtab_76[b_uv_dx & 0xf];
-    b_uv_dy = (b_uv_dy >> 3) + roundtab_76[b_uv_dy & 0xf];
+    uv_dx = (uv_dx >> 3) + sram_roundtab_76[uv_dx & 0xf];
+    uv_dy = (uv_dy >> 3) + sram_roundtab_76[uv_dy & 0xf];
+    b_uv_dx = (b_uv_dx >> 3) + sram_roundtab_76[b_uv_dx & 0xf];
+    b_uv_dy = (b_uv_dy >> 3) + sram_roundtab_76[b_uv_dy & 0xf];
   }
 
   start_timer();
