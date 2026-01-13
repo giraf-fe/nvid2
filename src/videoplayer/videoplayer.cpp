@@ -11,13 +11,60 @@
 
 #include <nspireio/uart.hpp>
 
+#include "mmu/MMUHijacker.hpp"
+
 namespace {
     // xvid global init singleton
+    constexpr uintptr_t SRAMSize = 0x40000; // 256 KB
+    constexpr uintptr_t PhySRAMAddress = 0xA4000000;
+    constexpr uintptr_t NewSRAMAddress = 0xEE000000;
+    struct HijackedSRAM {
+        void* fakeSram;
+        std::optional<MMUHijacker> mmuHijacker;
+
+        bool initSuccess;
+
+        HijackedSRAM() : fakeSram(nullptr), initSuccess(false) {
+            fakeSram = aligned_malloc(0x100000, 0x40000);
+            if (!fakeSram) {
+                return;
+            }
+            int mask = TCT_Local_Control_Interrupts(-1);
+
+            // construct MMU hijacker
+            mmuHijacker.emplace();
+
+            // copy original SRAM to fake SRAM
+            memcpy(fakeSram, (void*)PhySRAMAddress, 0x40000);
+
+            // map fake sram
+            mmuHijacker->map(PhySRAMAddress, (uintptr_t)fakeSram, 0xC00);
+            mmuHijacker->map(0x00000000, (uintptr_t)fakeSram, 0xC00);
+
+            // map true SRAM to new address
+            mmuHijacker->map(NewSRAMAddress, PhySRAMAddress, 0xC0C); // cached for extra performance
+            
+            TCT_Local_Control_Interrupts(mask);
+
+
+            initSuccess = true;
+        }
+        ~HijackedSRAM() {
+            if (fakeSram) {
+                // restore SRAM contents
+                int mask = TCT_Local_Control_Interrupts(-1);
+                memcpy((void*)NewSRAMAddress, fakeSram, 0x40000);
+                aligned_free(fakeSram);
+                TCT_Local_Control_Interrupts(mask);
+            }
+        }
+    };
 
     // constexpr size_t kXvidPreallocatedBufferSize = 1024 * 1024; // 1 MB
     // std::unique_ptr<uint8_t[], AlignedDeleter> g_xvidPreallocatedBuffer;
-    constexpr size_t kXvidPreallocatedBufferSize = 0x20000; // 128 KB
-    SRAMBuffer<0xA4000000, 0x20000, 0x20000> g_xvidPreallocatedBuffer; // 128 KB
+    // constexpr size_t kXvidPreallocatedBufferSize = 0x20000; // 128 KB
+    // SRAMBuffer<0xA4000000, kXvidPreallocatedBufferSize, 0x20000> g_xvidPreallocatedBuffer; // 128 KB
+    std::optional<HijackedSRAM> g_hijackedSRAM = std::nullopt;
     bool g_xvidGlobalInitialized = false;
 
     bool EnsureXvidGlobalInitialized(std::string& errorMsg) {
@@ -29,15 +76,28 @@ namespace {
         //     static_cast<uint8_t*>(AlignedAllocate(CACHE_LINE_SIZE, kXvidPreallocatedBufferSize))
         // );
         
-        if (!g_xvidPreallocatedBuffer.isValid()) {
-            errorMsg = "Failed to allocate Xvid preallocated buffer";
-            return false;
+        // if (!g_xvidPreallocatedBuffer) {
+        //     errorMsg = "Failed to allocate Xvid preallocated buffer";
+        //     return false;
+        // }
+
+        if (!g_hijackedSRAM) {
+            g_hijackedSRAM.emplace();
+            if(!g_hijackedSRAM) {
+                errorMsg = "Failed to allocate HijackedSRAM";
+                return false;
+            }
+            if (!g_hijackedSRAM->initSuccess) {
+                errorMsg = "Failed to initialize hijacked SRAM for Xvid";
+                g_hijackedSRAM = std::nullopt;
+                return false;
+            }
         }
 
         xvid_gbl_init_t xvid_gbl_init{};
         xvid_gbl_init.version = XVID_VERSION;
-        xvid_gbl_init.sram_base = (void*)g_xvidPreallocatedBuffer.get();
-        xvid_gbl_init.sram_size = kXvidPreallocatedBufferSize;
+        xvid_gbl_init.sram_base = (void*)NewSRAMAddress;
+        xvid_gbl_init.sram_size = SRAMSize;
 
         const int rc = xvid_global(NULL, XVID_GBL_INIT, &xvid_gbl_init, NULL);
         if (rc < 0) {

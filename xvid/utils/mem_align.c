@@ -27,6 +27,11 @@
 #include <stdio.h>
 #include "mem_align.h"
 
+/* SRAM Context */
+static uint8_t *sram_pool_base = NULL;
+static unsigned int sram_pool_size = 0;
+static unsigned int sram_pool_usage = 0;
+
 /*****************************************************************************
  * xvid_malloc
  *
@@ -112,6 +117,13 @@ xvid_free(void *mem_ptr)
 	if (mem_ptr == NULL)
 		return;
 
+	/* If pointer is in SRAM pool, do nothing (it's persistent/bump allocated) */
+	if (sram_pool_base && 
+		(uint8_t*)mem_ptr >= sram_pool_base && 
+		(uint8_t*)mem_ptr < (sram_pool_base + sram_pool_size)) {
+		return;
+	}
+
 	/* Aligned pointer */
 	ptr = mem_ptr;
 
@@ -123,10 +135,7 @@ xvid_free(void *mem_ptr)
 	free(ptr);
 }
 
-/* SRAM Context */
-static uint8_t *sram_pool_base = NULL;
-static unsigned int sram_pool_size = 0;
-static unsigned int sram_pool_usage = 0;
+
 
 void
 xvid_init_sram(void *base, unsigned int size)
