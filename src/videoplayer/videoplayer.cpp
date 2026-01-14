@@ -130,19 +130,9 @@ static void set_lcd_mode(unsigned int mode)
 
 VideoPlayer::VideoPlayer(const VideoPlayerOptions& options) : options(options) {
     // check options
-    if (options.useMagicFrameBuffer && options.use24bitRGB) {
-        this->failedFlag = true;
-        this->errorMsg = "Incompatible options: useMagicFrameBuffer and use24bitRGB cannot both be true";
-        return;
-    }
     if (options.useMagicFrameBuffer && options.useLcdBlitAPI) {
         this->failedFlag = true;
         this->errorMsg = "Incompatible options: useMagicFrameBuffer and useLcdBlitAPI cannot both be true";
-        return;
-    }
-    if (options.use24bitRGB && options.useLcdBlitAPI) {
-        this->failedFlag = true;
-        this->errorMsg = "Incompatible options: use24bitRGB and useLcdBlitAPI cannot both be true";
         return;
     }
     if (options.preRotatedVideo && (options.useMagicFrameBuffer || options.useLcdBlitAPI)) {
@@ -211,12 +201,6 @@ VideoPlayer::VideoPlayer(const VideoPlayerOptions& options) : options(options) {
     for (size_t i = 0; i < FRAMES_IN_FLIGHT_COUNT; i++) {
         if (options.useMagicFrameBuffer) {
             this->frameBuffersArray[i] = new MagicFrameBuffer();
-        } else if (options.use24bitRGB) {
-            this->frameBuffersArray[i] = (StandardFrameBuffer<SIZEOF_RGB888>*) 
-                aligned_malloc(CACHE_LINE_SIZE, sizeof(StandardFrameBuffer<SIZEOF_RGB888>));
-            if (this->frameBuffersArray[i]) {
-                new (this->frameBuffersArray[i]) StandardFrameBuffer<SIZEOF_RGB888>();
-            } 
         } else {
             this->frameBuffersArray[i] = (StandardFrameBuffer<SIZEOF_RGB565>*) 
                 aligned_malloc(CACHE_LINE_SIZE, sizeof(StandardFrameBuffer<SIZEOF_RGB565>));
@@ -281,18 +265,7 @@ VideoPlayer::VideoPlayer(const VideoPlayerOptions& options) : options(options) {
         }
     } else if (options.useMagicFrameBuffer || options.preRotatedVideo) {
         // nothing needs to be done
-    } else if (options.use24bitRGB) { // need to allocate rotation buffers
-        this->rotationBufferPtr = aligned_malloc(
-            CACHE_LINE_SIZE,
-            FRAME_TOTAL_PIXELS * SIZEOF_RGB888
-        );
-        if (!this->rotationBufferPtr.has_value()) {
-            this->failedFlag = true;
-            this->errorMsg = "Failed to allocate rotation buffer for 24-bit RGB mode";
-            return;
-        }
     } else {
-        // for normal 16-bit rgb mode too
         this->rotationBufferPtr = aligned_malloc(
             CACHE_LINE_SIZE,
             FRAME_TOTAL_PIXELS * SIZEOF_RGB565
@@ -507,15 +480,9 @@ void* VideoPlayer::InitLCD() {
         newBuf = this->rotationBufferPtr.value();
     }
 
-    if (!options.use24bitRGB) {
-        set_lcd_mode(6); // RGB565 mode
-        REAL_SCREEN_BASE_ADDRESS = newBuf;
-    } else {
-        pwr_lcd(false);
-        set_lcd_mode(5); // RGB888 mode
-        REAL_SCREEN_BASE_ADDRESS = newBuf;
-        pwr_lcd(true);
-    }
+
+    set_lcd_mode(6); // RGB565 mode
+    REAL_SCREEN_BASE_ADDRESS = newBuf;
     
     return oldBuf;
 }
@@ -580,18 +547,7 @@ void VideoPlayer::DisplayFrame(FrameInFlightData<FrameBufferType>& frameData) {
         return;
     } 
     // right now: normal framebuffer, need to rotate during blit
-    else if (this->options.use24bitRGB) {
-        // 24-bit RGB, 32-bit stride
-        uint32_t* srcPtr = (uint32_t*)frameData.swapchainFramePtr->data();
-        uint32_t* dstPtr = static_cast<uint32_t*>(REAL_SCREEN_BASE_ADDRESS);
-        for (int col = 0; col < SCREEN_HEIGHT; ++col) {
-            int flippedCol = (SCREEN_HEIGHT - 1) - col;
-            uint32_t* outcol = dstPtr + flippedCol;
-            for(int row = 0; row < SCREEN_WIDTH; ++row, outcol += SCREEN_HEIGHT)
-                *outcol = *srcPtr++;
-        }
-        return;
-    } else {
+    else {
         // 16-bit RGB565
         uint16_t* srcPtr = (uint16_t*)frameData.swapchainFramePtr->data();
         uint16_t* dstPtr = static_cast<uint16_t*>(REAL_SCREEN_BASE_ADDRESS);

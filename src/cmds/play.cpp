@@ -12,7 +12,6 @@ CommandHandler GetplayCommandHandler() {
                        "  -b\tRun in benchmark mode (no video output) | Default: off\n"
                        "  -bdb\tBlit frames even in benchmark mode | Default: off\n"
                        "  -mfb\tUse the magic framebuffer | Default: on\n"
-                       "  -24bpp\tUse 24-bit RGB framebuffer (incompatible with magic framebuffer) | Default: off\n"
                        "  -lcdblit\tUse LCD blit API for frame output | Default: off\n"
                        "  -prv\tPre-rotated video (no rotation during blit, video must be pre-rotated) | Default: off\n"
                        "  -fd\tFast decoding (less CPU usage, lower quality) | Default: on\n"
@@ -39,8 +38,6 @@ CommandHandler GetplayCommandHandler() {
                     options.blitDuringBenchmark = true;
                 } else if (args[i] == "-mfb") {
                     options.useMagicFrameBuffer = true;
-                } else if (args[i] == "-24bpp") {
-                    options.use24bitRGB = true;
                 } else if (args[i] == "-lcdblit") {
                     options.useLcdBlitAPI = true;
                 } else if (args[i] == "-prv") {
@@ -63,8 +60,6 @@ CommandHandler GetplayCommandHandler() {
                     options.blitDuringBenchmark = false;
                 } else if (args[i] == "-Nmfb") {
                     options.useMagicFrameBuffer = false;
-                } else if (args[i] == "-N24bpp") {
-                    options.use24bitRGB = false;
                 } else if (args[i] == "-Nlcdblit") {
                     options.useLcdBlitAPI = false;
                 } else if (args[i] == "-Nprv") {

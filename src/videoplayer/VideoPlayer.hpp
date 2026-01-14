@@ -13,7 +13,6 @@
 #include "SP804.hpp"
 
 #define SIZEOF_RGB565 2
-#define SIZEOF_RGB888 4
 #define FILE_READ_BUFFER_PADDING 32
 #define SIZEOF_FILE_READ_BUFFER (262144ul - FILE_READ_BUFFER_PADDING)
 #define FRAMES_IN_FLIGHT_COUNT 2
@@ -80,9 +79,8 @@ struct VideoPlayerOptions {
     std::string filename;
     bool benchmarkMode = false;
     bool blitDuringBenchmark = false;
-    bool useMagicFrameBuffer = true; // incompatible with 24-bit RGB
-    bool use24bitRGB = false; // incompatible with magic framebuffer
-    bool useLcdBlitAPI = false; // incompatible with magic framebuffer and 24-bit RGB
+    bool useMagicFrameBuffer = true;
+    bool useLcdBlitAPI = false; // incompatible with magic framebuffer
     bool preRotatedVideo = false; // incompatible with magic framebuffer and lcd blit API
 
     bool fastDecoding = true;

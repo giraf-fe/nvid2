@@ -81,7 +81,7 @@ void VideoPlayer::fillFramesInFlightQueue() {
         decFrame.bitstream = (void*)(this->fileReadBuffer.get() + this->decoderReadHead);
         decFrame.length = this->decoderReadAvailable;
         
-        decFrame.output.csp = this->options.use24bitRGB ? XVID_CSP_BGRA : XVID_CSP_RGB565;
+        decFrame.output.csp = XVID_CSP_RGB565;
         if(this->options.benchmarkMode && !this->options.blitDuringBenchmark) {
             // in benchmark mode without blitting, skip color conversion to measure true decode speed
             decFrame.output.csp = XVID_CSP_INTERNAL;
@@ -95,9 +95,7 @@ void VideoPlayer::fillFramesInFlightQueue() {
             return;
         }
         decFrame.output.plane[0] = frameBuffer->data();
-        decFrame.output.stride[0] = 
-            (this->options.preRotatedVideo ? SCREEN_HEIGHT : SCREEN_WIDTH) * 
-            (this->options.use24bitRGB ? SIZEOF_RGB888 : SIZEOF_RGB565);
+        decFrame.output.stride[0] = (this->options.preRotatedVideo ? SCREEN_HEIGHT : SCREEN_WIDTH) * SIZEOF_RGB565;
 
         xvid_dec_stats_t decStats{};
         decStats.version = XVID_VERSION;
