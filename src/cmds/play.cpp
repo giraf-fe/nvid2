@@ -12,10 +12,9 @@ CommandHandler GetplayCommandHandler() {
                        "  -b\tRun in benchmark mode (no video output) | Default: off\n"
                        "  -bdb\tBlit frames even in benchmark mode | Default: off\n"
                        "  -mfb\tUse the magic framebuffer | Default: on\n"
-                       "  -lcdblit\tUse LCD blit API for frame output | Default: off\n"
                        "  -prv\tPre-rotated video (no rotation during blit, video must be pre-rotated) | Default: off\n"
                        "  -fd\tFast decoding (less CPU usage, lower quality) | Default: on\n"
-                       "  -ld\tLow-delay mode (reduces latency, drops b-frame support) | Default: on\n"
+                       "  -ld\tLow-delay mode (reduces latency, disables B-frames) | Default: off\n"
                        "  -dbl\tEnable luma deblocking filter | Default: off\n"
                        "  -dbc\tEnable chroma deblocking filter | Default: off\n"
                        "  -drl\tEnable luma deringing filter | Default: off\n"
@@ -38,8 +37,6 @@ CommandHandler GetplayCommandHandler() {
                     options.blitDuringBenchmark = true;
                 } else if (args[i] == "-mfb") {
                     options.useMagicFrameBuffer = true;
-                } else if (args[i] == "-lcdblit") {
-                    options.useLcdBlitAPI = true;
                 } else if (args[i] == "-prv") {
                     options.preRotatedVideo = true;
                 } else if (args[i] == "-fd") {
@@ -60,8 +57,6 @@ CommandHandler GetplayCommandHandler() {
                     options.blitDuringBenchmark = false;
                 } else if (args[i] == "-Nmfb") {
                     options.useMagicFrameBuffer = false;
-                } else if (args[i] == "-Nlcdblit") {
-                    options.useLcdBlitAPI = false;
                 } else if (args[i] == "-Nprv") {
                     options.preRotatedVideo = false;
                 } else if (args[i] == "-Nfd") {

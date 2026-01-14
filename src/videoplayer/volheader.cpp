@@ -237,7 +237,9 @@ void VideoPlayer::readVOLHeader() {
     decFrame.version = XVID_VERSION;
 
     // header is first read, need discontinuity flag
-    decFrame.general = XVID_LOWDELAY | XVID_DEC_FAST | XVID_DISCONTINUITY;
+    decFrame.general = XVID_DISCONTINUITY |
+        (this->options.fastDecoding ? XVID_DEC_FAST : 0) | 
+        (this->options.lowDelayMode ? XVID_LOWDELAY : 0);
     decFrame.bitstream = (void*)(this->fileReadBuffer.get() + this->decoderReadHead);
     decFrame.length = this->decoderReadAvailable;
     decFrame.output.csp = XVID_CSP_NULL;

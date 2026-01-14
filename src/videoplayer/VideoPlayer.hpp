@@ -19,6 +19,8 @@
 #define FRAME_TOTAL_PIXELS (SCREEN_WIDTH * SCREEN_HEIGHT)
 #define CACHE_LINE_SIZE 32
 
+#define MAGIC_FRAMEBUFFER_ADDRESS ((uint8_t*)0xA8000000)
+
 constexpr uint32_t timerHz = 12'000'000 / 256; // 12 MHz / 256 prescale
 constexpr uint32_t timerStartValue = 0xFFFFFFFF;
 
@@ -28,35 +30,6 @@ static inline void* AlignedAllocate(size_t alignment, size_t size) {
 struct AlignedDeleter {
     inline void operator()(void* ptr) const {
         aligned_free(ptr);
-    }
-};
-
-template<uintptr_t SRAMAddr, size_t BufferSize, uintptr_t Offset>
-class SRAMBuffer {
-    static_assert(Offset + BufferSize <= 0x40000, "SRAMBuffer exceeds SRAM bounds");
-    void* SDRAMBuffer;
-public:
-    SRAMBuffer() {
-        SDRAMBuffer = malloc(BufferSize);
-        if (!SDRAMBuffer) {
-            return;
-        }
-        // copy from SRAM to SDRAM buffer
-        memcpy(SDRAMBuffer, (void*)(SRAMAddr + Offset), BufferSize);
-    }
-    bool isValid() const {
-        return SDRAMBuffer != nullptr;
-    }
-    ~SRAMBuffer() {
-        // copy back from SDRAM buffer to SRAM
-        if (SDRAMBuffer) {
-            memcpy((void*)(SRAMAddr + Offset), SDRAMBuffer, BufferSize);
-        }
-        free(SDRAMBuffer);
-    }
-
-    inline constexpr uintptr_t get() const {
-        return SRAMAddr + Offset;
     }
 };
 
@@ -80,39 +53,22 @@ struct VideoPlayerOptions {
     bool benchmarkMode = false;
     bool blitDuringBenchmark = false;
     bool useMagicFrameBuffer = true;
-    bool useLcdBlitAPI = false; // incompatible with magic framebuffer
-    bool preRotatedVideo = false; // incompatible with magic framebuffer and lcd blit API
+    bool preRotatedVideo = false; // incompatible with magic framebuffer
+
+    // TODO: skip the swapchain and render directly to LCD
+    // bool renderDirectToLCD = false;
 
     bool fastDecoding = true;
-    bool lowDelayMode = true;
+    // Low-delay disables B-frames; keep it off by default so B-VOPs can be decoded.
+    bool lowDelayMode = false;
     bool deblockLuma = false;
     bool deblockChroma = false;
     bool deringLuma = false;
     bool deringChroma = false;
 };
 
-struct FrameBufferType {
-    FrameBufferType() = default;
-    virtual ~FrameBufferType() = default;
-
-    virtual uint8_t* data() const = 0;
-};
-
-struct MagicFrameBuffer: public FrameBufferType {
-    uint8_t* data() const override {
-        return (uint8_t*)(0xA8000000);
-    }
-};
-template<size_t PixelSize>
-struct StandardFrameBuffer: public FrameBufferType {
-    std::array<uint8_t, FRAME_TOTAL_PIXELS * PixelSize> buffer;
-
-    StandardFrameBuffer() : buffer{} {
-    }
-    uint8_t* data() const override {
-        return (uint8_t*)(buffer.data());
-    }
-};
+using FrameBufferType = std::array<uint8_t, FRAME_TOTAL_PIXELS * SIZEOF_RGB565>;
+extern "C" void FastMemcpy(void* dest, const void* src, size_t chunks_32byte);
 
 class VideoPlayer {
     VideoPlayerOptions options;  
@@ -125,7 +81,7 @@ class VideoPlayer {
     size_t decoderReadAvailable = 0;
     std::unique_ptr<uint8_t[], AlignedDeleter> fileReadBuffer;
 
-    std::array<FrameBufferType*, FRAMES_IN_FLIGHT_COUNT> frameBuffersArray{};
+    std::unique_ptr<std::array<FrameBufferType, FRAMES_IN_FLIGHT_COUNT>, AlignedDeleter> frameBuffersArray;
     SwapChain<FrameBufferType, FRAMES_IN_FLIGHT_COUNT> decodedFramesSwapchain;
 
     RingBuffer<FrameInFlightData<FrameBufferType>, FRAMES_IN_FLIGHT_COUNT> framesInFlightQueue;
@@ -170,9 +126,6 @@ class VideoPlayer {
 
     bool failedFlag = false;
     std::string errorMsg = "Incomplete initialization";
-
-    scr_type_t lcdScreenType;
-    std::optional<void*> rotationBufferPtr;
 
     // return false if file end reached
     bool fillReadBuffer(uint32_t requestedBytes = SIZEOF_FILE_READ_BUFFER);

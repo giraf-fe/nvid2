@@ -165,7 +165,6 @@ void VideoPlayer::fillFramesInFlightQueue() {
             }().push_back(
                 frameDecodeStartTicks - this->frameTimer.getCurrentValue32()
             );
-            
 
             // advance read head
             advanceReadHead(bytesConsumed);

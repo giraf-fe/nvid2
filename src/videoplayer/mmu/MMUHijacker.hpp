@@ -31,8 +31,10 @@ private:
         asm volatile("mcr p15, 0, %0, c7, c10, 4" :: "r"(0)); // Data Synchronization Barrier
     }
 
+public:
     // Clean D-Cache: Pushes data from CPU Cache -> Physical RAM
     // The MMU hardware reads RAM, so if we don't do this, the MMU sees garbage.
+    // Made public for use in other contexts.
     static inline void clean_dcache_range(uintptr_t start, uintptr_t end) {
         uintptr_t addr;
         // Iterate by cache line (assumed 32 bytes)
@@ -42,7 +44,6 @@ private:
         asm volatile("mcr p15, 0, %0, c7, c10, 4" :: "r"(0)); // DSB
     }
 
-public:
     // ---------------------------------------------------------
     // Constructor: The "Hijack"
     // ---------------------------------------------------------

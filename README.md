@@ -5,14 +5,14 @@ inspired by the older project [nvid](https://github.com/pbfy0/nvid)
 **Current state: Only CX-II compatible, HW-W+** \
 Includes the II-T and CAS models
 
-uses a stripped down version of xvid, arm assembly paths may come soon to improve performance
+Uses a stripped down version of xvid as the video decode library.
 
 ffmpeg command: \
 `ffmpeg -i YOUR_VIDEO.extension -map 0:0 -c:v libxvid -bf 0 -gmc 0 -pix_fmt yuv420p -vf "scale=320:240,fps=24" -me_quality 6 -mbd rd -trellis 1 -b:v 500k -f m4v YOUR-VIDEO.tns`
 
 ### Pre-rotated videos (performance tip)
 Since the display on the CX-II is rotated 90 degrees, pre-rotating the video skips needing to rotate 
-the decoded output at runtime. This can save ~3.2ms per frame at 16bpp, double at 24bpp.
+the decoded output at runtime. This can save ~3.2ms per frame at 16bpp.
 
 Use the option `-prv` to tell the player that the video is pre-rotated.
 
@@ -57,9 +57,7 @@ Flags (later flags override earlier ones):
  - `-bdb`: blit frames even in benchmark mode
 
 Output / framebuffer mode:
- - `-mfb`: use the magic framebuffer (**default: on**)
- - `-24bpp`: use 24-bit RGB framebuffer (higher bandwidth; incompatible with magic framebuffer)
- - `-lcdblit`: use Ndless's LCD blit API (incompatible with magic framebuffer and 24bpp)
+ - `-mfb`: use the magic framebuffer to perform rotation (**default: on**)
  - `-prv`: pre-rotated video (no rotation during blit; video must be pre-rotated to 240x320)
 
 Decode quality / latency:
@@ -72,14 +70,12 @@ Turning off defaults:
  - Any option that is on by default can be disabled with the opposite flag form: `-N...` (example: `-Nmfb` disables the magic framebuffer).
 
 Incompatibilities enforced by the player:
- - `-mfb` cannot be combined with `-24bpp` or `-lcdblit`.
- - `-prv` cannot be combined with `-mfb` or `-lcdblit`.
+ - `-mfb` cannot be combined with `-prv`, that wouldn't logically make sense
 
 Examples:
  - Normal playback (defaults): `play video.tns`
  - Benchmark decode only: `play video.tns -b`
  - Benchmark but still show frames: `play video.tns -b -bdb`
- - Set the LCD to use 24-bit color: `play video.tns -24bpp`
  - Pre-rotated playback (skip rotation work): `play video.tns -Nmfb -prv`
  - All deblock + dering filters (very slow): `play video.tns -dbl -dbc -drl -drc`
 
@@ -92,13 +88,10 @@ Examples:
 
 ## Performance
 Currently, 30 fps and above is quite easily achievable, better than the older nvid which used the more complex vp8 codec.
-60 fps realtime may become possible in the future when overclocked; ~~YV12 -> RGB565 conversion currently takes the most
-time per frame. For some odd reason, using 24bpp color with pre-rotated video is actually faster than RGB565. Xvid's 
-conversion function for RGB565 is probably not that well optimized.~~
-This has been fixed by using a custom conversion function. The currently known fastest playback would be to use the magic framebuffer (framebuffer is in sram, prevents write latency into sdram) at 16bpp, encoded with MPEG-4 Part 2 SP (simple profile).
+60 fps realtime is possible when overclocked at ~456MHz CPU, 228MHz APB, using a pre-rotated video  encoded with MPEG-4 Part 2
+SP (Simple Profile, no qpel, gmc, b-frames).
  
  
-
 # License
 This project is licensed under GPLv2 (because of xvid).  
 Copyright (C) 2026 giraf-fe

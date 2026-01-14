@@ -37,25 +37,36 @@ namespace {
             // copy original SRAM to fake SRAM
             memcpy(fakeSram, (void*)PhySRAMAddress, 0x40000);
 
+            // flush fake SRAM to RAM
+            MMUHijacker::clean_dcache_range((uintptr_t)fakeSram, (uintptr_t)fakeSram + 0x40000);
+
             // map fake sram
             mmuHijacker->map(PhySRAMAddress, (uintptr_t)fakeSram, 0xC00);
             mmuHijacker->map(0x00000000, (uintptr_t)fakeSram, 0xC00);
 
             // map true SRAM to new address
             mmuHijacker->map(NewSRAMAddress, PhySRAMAddress, 0xC0C); // cached for extra performance
-            
-            TCT_Local_Control_Interrupts(mask);
 
+            // clear new SRAM area
+            memset((void*)NewSRAMAddress, 0, 0x40000);
+
+            // flush new SRAM to RAM
+            MMUHijacker::clean_dcache_range(NewSRAMAddress, NewSRAMAddress + 0x40000);
+
+            TCT_Local_Control_Interrupts(mask);
 
             initSuccess = true;
         }
         ~HijackedSRAM() {
             if (fakeSram) {
                 // restore SRAM contents
-                int mask = TCT_Local_Control_Interrupts(-1);
-                memcpy((void*)NewSRAMAddress, fakeSram, 0x40000);
+                if(initSuccess) {
+                    int mask = TCT_Local_Control_Interrupts(-1);
+                    memcpy((void*)NewSRAMAddress, fakeSram, 0x40000);
+                    MMUHijacker::clean_dcache_range(NewSRAMAddress, NewSRAMAddress + 0x40000);
+                    TCT_Local_Control_Interrupts(mask);
+                }
                 aligned_free(fakeSram);
-                TCT_Local_Control_Interrupts(mask);
             }
         }
     };
@@ -130,14 +141,14 @@ static void set_lcd_mode(unsigned int mode)
 
 VideoPlayer::VideoPlayer(const VideoPlayerOptions& options) : options(options) {
     // check options
-    if (options.useMagicFrameBuffer && options.useLcdBlitAPI) {
+    if (options.preRotatedVideo && options.useMagicFrameBuffer) {
         this->failedFlag = true;
-        this->errorMsg = "Incompatible options: useMagicFrameBuffer and useLcdBlitAPI cannot both be true";
+        this->errorMsg = "Incompatible options: preRotatedVideo cannot be true when using MagicFrameBuffer";
         return;
     }
-    if (options.preRotatedVideo && (options.useMagicFrameBuffer || options.useLcdBlitAPI)) {
+    if(!options.preRotatedVideo && !options.useMagicFrameBuffer) {
         this->failedFlag = true;
-        this->errorMsg = "Incompatible options: preRotatedVideo cannot be true when using MagicFrameBuffer or LcdBlitAPI";
+        this->errorMsg = "Incompatible options: one of preRotatedVideo or useMagicFrameBuffer must be true";
         return;
     }
 
@@ -198,23 +209,24 @@ VideoPlayer::VideoPlayer(const VideoPlayerOptions& options) : options(options) {
     memset(this->fileReadBuffer.get() + SIZEOF_FILE_READ_BUFFER, 0, FILE_READ_BUFFER_PADDING);
 
     // allocate decoded frames buffer
-    for (size_t i = 0; i < FRAMES_IN_FLIGHT_COUNT; i++) {
-        if (options.useMagicFrameBuffer) {
-            this->frameBuffersArray[i] = new MagicFrameBuffer();
-        } else {
-            this->frameBuffersArray[i] = (StandardFrameBuffer<SIZEOF_RGB565>*) 
-                aligned_malloc(CACHE_LINE_SIZE, sizeof(StandardFrameBuffer<SIZEOF_RGB565>));
-            if (this->frameBuffersArray[i]) {
-                new (this->frameBuffersArray[i]) StandardFrameBuffer<SIZEOF_RGB565>();
-            }
-        }
-        if (!this->frameBuffersArray[i]) {
-            this->failedFlag = true;
-            this->errorMsg = "Failed to allocate frame buffer";
-            return;
-        }
+    this->frameBuffersArray = std::unique_ptr<std::array<FrameBufferType, FRAMES_IN_FLIGHT_COUNT>, AlignedDeleter>(
+        reinterpret_cast<std::array<FrameBufferType, FRAMES_IN_FLIGHT_COUNT>*>(
+            AlignedAllocate(CACHE_LINE_SIZE, sizeof(std::array<FrameBufferType, FRAMES_IN_FLIGHT_COUNT>))
+        )
+    );
+    if(!this->frameBuffersArray) {
+        this->failedFlag = true;
+        this->errorMsg = "Failed to allocate frame buffers array";
+        return;
     }
-    this->decodedFramesSwapchain.setBuffers(this->frameBuffersArray);
+    new (this->frameBuffersArray.get()) std::array<FrameBufferType, FRAMES_IN_FLIGHT_COUNT>{};
+
+    // create refs to frame buffers for swapchain
+    std::array<FrameBufferType*, FRAMES_IN_FLIGHT_COUNT> frameBufferPtrs{};
+    for (size_t i = 0; i < FRAMES_IN_FLIGHT_COUNT; i++) {
+        frameBufferPtrs[i] = &(*this->frameBuffersArray)[i];
+    }
+    this->decodedFramesSwapchain.setBuffers(frameBufferPtrs);
     
     // prime read buffer
     this->fillReadBuffer();
@@ -224,7 +236,9 @@ VideoPlayer::VideoPlayer(const VideoPlayerOptions& options) : options(options) {
     if(this->failedFlag) {
         return;
     }
+
     // check video dimensions
+    // TODO: auto detect
     if(options.preRotatedVideo) {
         if (this->videoWidth != SCREEN_HEIGHT || this->videoHeight != SCREEN_WIDTH) {
             this->failedFlag = true;
@@ -252,50 +266,11 @@ VideoPlayer::VideoPlayer(const VideoPlayerOptions& options) : options(options) {
     if (this->failedFlag) {
         return;
     }
-    
-    // init lcd
-    if (options.benchmarkMode && !options.blitDuringBenchmark) {
-        // skip
-    } else if (options.useLcdBlitAPI) {
-        this->lcdScreenType = lcd_type();
-        if (!lcd_init(this->lcdScreenType)) {
-            this->failedFlag = true;
-            this->errorMsg = "Failed to initialize LCD";
-            return;
-        }
-    } else if (options.useMagicFrameBuffer || options.preRotatedVideo) {
-        // nothing needs to be done
-    } else {
-        this->rotationBufferPtr = aligned_malloc(
-            CACHE_LINE_SIZE,
-            FRAME_TOTAL_PIXELS * SIZEOF_RGB565
-        );
-        if (!this->rotationBufferPtr.has_value()) {
-            this->failedFlag = true;
-            this->errorMsg = "Failed to allocate rotation buffer for 16-bit RGB mode";
-            return;
-        }
-    }
 
     this->failedFlag = false;
     this->errorMsg = "Successful initialization";
 }
 VideoPlayer::~VideoPlayer() {
-    if(this->rotationBufferPtr.has_value()) {
-        aligned_free(this->rotationBufferPtr.value());
-        this->rotationBufferPtr.reset();
-    }
-
-    for (size_t i = 0; i < FRAMES_IN_FLIGHT_COUNT; i++) {
-        if (this->frameBuffersArray[i]) {
-            if(options.useMagicFrameBuffer) {
-                delete this->frameBuffersArray[i];
-            } else {
-                this->frameBuffersArray[i]->~FrameBufferType();
-                aligned_free(this->frameBuffersArray[i]);
-            }
-        }
-    }
 
     if (this->xvidDecoderHandle) {
         xvid_decore(this->xvidDecoderHandle, XVID_DEC_DESTROY, NULL, NULL);
@@ -463,25 +438,15 @@ void* VideoPlayer::InitLCD() {
     }
 
     // set lcd mode
-    void* oldBuf = REAL_SCREEN_BASE_ADDRESS;
-
-    if (this->options.useLcdBlitAPI) {
-        // nothing to do here
-        return oldBuf;
-    } else if (this->options.useMagicFrameBuffer) {
-        // nothing to do here
-        return oldBuf;
-    }
-    
-    void* newBuf = this->decodedFramesSwapchain.operator[](0)->data();
-
-    // if the rotation buffer is used, set it as the base address
-    if(this->rotationBufferPtr.has_value()) {
-        newBuf = this->rotationBufferPtr.value();
-    }
-
-
     set_lcd_mode(6); // RGB565 mode
+
+    void* oldBuf = REAL_SCREEN_BASE_ADDRESS;
+    if(this->options.useMagicFrameBuffer) {
+        REAL_SCREEN_BASE_ADDRESS = (void*)MAGIC_FRAMEBUFFER_ADDRESS;
+        return oldBuf;
+    }
+    // if not using mfb
+    void* newBuf = this->decodedFramesSwapchain.operator[](0)->data();
     REAL_SCREEN_BASE_ADDRESS = newBuf;
     
     return oldBuf;
@@ -535,29 +500,17 @@ void VideoPlayer::WaitForNextFrame(uint32_t timingTicks, uint32_t playbackStartT
 }
 
 void VideoPlayer::DisplayFrame(FrameInFlightData<FrameBufferType>& frameData) {
-    if (this->options.useMagicFrameBuffer) {
-        // dont need to do anything, magic framebuffer auto-updates
-        return;
-    } else if (this->options.useLcdBlitAPI) {
-        lcd_blit(frameData.swapchainFramePtr->data(), this->lcdScreenType);
-        return;
-    } else if (this->options.preRotatedVideo) {
-        // pre-rotated video, can display directly
+    if(this->options.useMagicFrameBuffer) {
+        // copy from frame buffer to mfb
+        constexpr size_t chunks_32byte = (FRAME_TOTAL_PIXELS * SIZEOF_RGB565) / 32;
+        FastMemcpy(
+            (void*)MAGIC_FRAMEBUFFER_ADDRESS,
+            frameData.swapchainFramePtr->data(),
+            chunks_32byte
+        );
+    } else {
+        // pre rotated, can display directly
         REAL_SCREEN_BASE_ADDRESS = frameData.swapchainFramePtr->data();
-        return;
-    } 
-    // right now: normal framebuffer, need to rotate during blit
-    else {
-        // 16-bit RGB565
-        uint16_t* srcPtr = (uint16_t*)frameData.swapchainFramePtr->data();
-        uint16_t* dstPtr = static_cast<uint16_t*>(REAL_SCREEN_BASE_ADDRESS);
-        for (int col = 0; col < SCREEN_HEIGHT; ++col) {
-            int flippedCol = (SCREEN_HEIGHT - 1) - col;
-            uint16_t* outcol = dstPtr + flippedCol;
-            for(int row = 0; row < SCREEN_WIDTH; ++row, outcol += SCREEN_HEIGHT)
-                *outcol = *srcPtr++;
-        }
-        return;
     }
 }
 

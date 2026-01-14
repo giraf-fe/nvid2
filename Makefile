@@ -11,7 +11,7 @@ GENZEHN = genzehn
 OBJDUMP = arm-none-eabi-objdump
 
 ZEHNFLAGS = --name "nvid2" --author "giraf-fe" --notice "mpeg4 video player" --240x320-support true \
-			--ndless-min 53 --ndless-max 62 --color-support true --uses-lcd-blit true
+			--ndless-min 53 --ndless-max 62 --color-support true --uses-lcd-blit false
 # -Werror removed for now due to xvid warnings
 SHAREDFLAGS =  -Wall -Wextra -Wpedantic -marm -finline-functions -march=armv5te -mtune=arm926ej-s -mfpu=auto -Ofast -flto -ffast-math -ffunction-sections -fdata-sections -mno-unaligned-access \
 			   -fno-math-errno -fomit-frame-pointer -fgcse-sm -fgcse-las -funsafe-loop-optimizations -fno-fat-lto-objects -frename-registers -fprefetch-loop-arrays \
