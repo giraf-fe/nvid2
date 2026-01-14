@@ -21,14 +21,20 @@ static uint8_t* g_Clamp;
 
 enum { CLAMP_CENTER = 1024, CLAMP_SIZE = 2048 };
 
+// experimental rgb565 shift tables (1.5kb)
+// static uint16_t* g_RedShiftTable;
+// static uint16_t* g_GreenShiftTable;
+// static uint16_t* g_BlueShiftTable;
+// Was profiled and found to be slower than direct packing.
+
 void init_yv12_to_rgb565_tables(void) {
-    // allocate tables in sram: 5 * 256 int32_t values + 2048 byte clamp table
+    // allocate tables in sram: 5 * 256 int32_t values + 2048 byte clamp table + 3 * 256 uint16_t shift tables
     uint8_t* sramTable = xvid_malloc_sram(5 * 256 * sizeof(int32_t) + CLAMP_SIZE, CACHE_LINE);
     g_Ytab = (int32_t*)sramTable;
-    g_UtoB = g_Ytab + 256;
-    g_UtoG = g_UtoB + 256;
-    g_VtoR = g_UtoG + 256;
-    g_VtoG = g_VtoR + 256;
+    g_UtoB = (g_Ytab + 256);
+    g_UtoG = (g_UtoB + 256);
+    g_VtoR = (g_UtoG + 256);
+    g_VtoG = (g_VtoR + 256);
     g_Clamp = (uint8_t*)(g_VtoG + 256);
 
     for (int i = 0; i < 256; ++i) {
@@ -52,13 +58,22 @@ void init_yv12_to_rgb565_tables(void) {
     }
 }
 
-static inline uint16_t pack_rgb565(uint8_t r, uint8_t g, uint8_t b) {
+__attribute__((hot))
+static uint16_t pack_rgb565(uint8_t r, uint8_t g, uint8_t b) {
     // r:8 -> 5, g:8 -> 6, b:8 -> 5
+    // const uint16_t r5 = r & 0xF8; // top 5 bits
+    // const uint16_t g6 = g & 0xFC; // top 6 bits
+    // // const uint16_t b5 = b & 0xF8; // b doesnt need a mask since we shift right
+
+    // return (uint16_t)((r5 << 8) | (g6 << 3) | (b >> 3));
+
     return (uint16_t)(((uint16_t)(r >> 3) << 11) |
                       ((uint16_t)(g >> 2) << 5)  |
                       ((uint16_t)(b >> 3) << 0));
 }
 
+
+__attribute__((hot))
 static inline uint16_t yuv_to_rgb565_pixel(
     uint8_t y,
     int32_t vr,
@@ -80,7 +95,7 @@ static inline uint16_t yuv_to_rgb565_pixel(
     return pack_rgb565(r8, g8, b8);
 }
 
-
+__attribute__((hot))
 void yv12_to_rgb565_concept(
     uint8_t *restrict x_ptr,
     int x_stride,
@@ -93,6 +108,7 @@ void yv12_to_rgb565_concept(
     int height,
     int vflip
 ) {
+
     // Local table bases (kept in regs more readily)
     const int32_t* Ytab = g_Ytab;
     const int32_t* VtoR = g_VtoR;
@@ -191,37 +207,6 @@ void yv12_to_rgb565_concept(
 
             dst0 += 2;
             dst1 += 2;
-        }
-
-        // Remaining 2 columns (one chroma sample)
-        if (rem2) {
-            // One more U/V byte lives at the current u16p/v16p address (low byte)
-            uint8_t u0 = *(const uint8_t*)u16p;
-            uint8_t v0 = *(const uint8_t*)v16p;
-
-            int32_t vr0   = VtoR[v0];
-            int32_t ub0   = UtoB[u0];
-            int32_t ugvg0 = UtoG[u0] + VtoG[v0];
-
-            // Two Ys remain in each row
-            const u16_alias* y0_16 = (const u16_alias*)y0_32;
-            const u16_alias* y1_16 = (const u16_alias*)y1_32;
-
-            uint16_t y0_2 = *y0_16;
-            uint16_t y1_2 = *y1_16;
-
-            uint8_t y00 = (uint8_t)(y0_2);
-            uint8_t y01 = (uint8_t)(y0_2 >> 8);
-            uint8_t y10 = (uint8_t)(y1_2);
-            uint8_t y11 = (uint8_t)(y1_2 >> 8);
-
-            uint16_t p00 = yuv_to_rgb565_pixel(y00, vr0, ugvg0, ub0, Ytab, clamp_centered);
-            uint16_t p01 = yuv_to_rgb565_pixel(y01, vr0, ugvg0, ub0, Ytab, clamp_centered);
-            uint16_t p10 = yuv_to_rgb565_pixel(y10, vr0, ugvg0, ub0, Ytab, clamp_centered);
-            uint16_t p11 = yuv_to_rgb565_pixel(y11, vr0, ugvg0, ub0, Ytab, clamp_centered);
-
-            *dst0++ = (uint32_t)p00 | ((uint32_t)p01 << 16);
-            *dst1++ = (uint32_t)p10 | ((uint32_t)p11 << 16);
         }
 
         // Advance to next 2-row block

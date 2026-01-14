@@ -15,7 +15,7 @@ ZEHNFLAGS = --name "nvid2" --author "giraf-fe" --notice "mpeg4 video player" --2
 # -Werror removed for now due to xvid warnings
 SHAREDFLAGS =  -Wall -Wextra -Wpedantic -marm -finline-functions -march=armv5te -mtune=arm926ej-s -mfpu=auto -Ofast -flto -ffast-math -ffunction-sections -fdata-sections -mno-unaligned-access \
 			   -fno-math-errno -fomit-frame-pointer -fgcse-sm -fgcse-las -funsafe-loop-optimizations -fno-fat-lto-objects -frename-registers -fprefetch-loop-arrays \
-			  -Ixvid -DARCH_IS_32BIT -DARCH_IS_ARM
+			  -Ixvid -DARCH_IS_32BIT -DARCH_IS_ARM -fopt-info-all-optall=opt.txt
 GCCFLAGS = $(SHAREDFLAGS) -Wno-incompatible-pointer-types -std=c99
 GXXFLAGS = $(SHAREDFLAGS) -std=c++20
 LDFLAGS = -Wall -lnspireio
