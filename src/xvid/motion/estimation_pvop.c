@@ -1074,7 +1074,6 @@ MotionEstimateSMP(SMPData * h)
 				if (current_mb >= max_mbs) {
 					/* current workload is zero */
 					x--;
-					sched_yield();
 					continue;
 				}
 			}

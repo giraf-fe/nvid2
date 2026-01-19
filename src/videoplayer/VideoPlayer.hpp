@@ -7,10 +7,11 @@
 #include <optional>
 #include <libndls.h>
 
-#include "aligned_alloc/aligned_alloc.h"
+#include <nspire-utils/mem/AlignedAlloc.hpp>
+#include <nspire-utils/devices/SP804.hpp>
 
 #include "RingBuffer.hpp"
-#include "SP804.hpp"
+
 
 #define SIZEOF_RGB565 2
 #define FILE_READ_BUFFER_PADDING 32
@@ -24,14 +25,6 @@
 constexpr uint32_t timerHz = 12'000'000 / 256; // 12 MHz / 256 prescale
 constexpr uint32_t timerStartValue = 0xFFFFFFFF;
 
-static inline void* AlignedAllocate(size_t alignment, size_t size) {
-    return aligned_malloc(alignment, size);
-}
-struct AlignedDeleter {
-    inline void operator()(void* ptr) const {
-        aligned_free(ptr);
-    }
-};
 
 // in volheader.cpp
 std::string GetXvidErrorMessage(int errorCode);
@@ -79,9 +72,9 @@ class VideoPlayer {
 
     size_t decoderReadHead = SIZEOF_FILE_READ_BUFFER;
     size_t decoderReadAvailable = 0;
-    std::unique_ptr<uint8_t[], AlignedDeleter> fileReadBuffer;
+    std::unique_ptr<uint8_t[], ntls::mem::AlignedDeleter> fileReadBuffer;
 
-    std::unique_ptr<std::array<FrameBufferType, FRAMES_IN_FLIGHT_COUNT>, AlignedDeleter> frameBuffersArray;
+    std::unique_ptr<std::array<FrameBufferType, FRAMES_IN_FLIGHT_COUNT>, ntls::mem::AlignedDeleter> frameBuffersArray;
     SwapChain<FrameBufferType, FRAMES_IN_FLIGHT_COUNT> decodedFramesSwapchain;
 
     RingBuffer<FrameInFlightData<FrameBufferType>, FRAMES_IN_FLIGHT_COUNT> framesInFlightQueue;
@@ -89,7 +82,9 @@ class VideoPlayer {
     int videoWidth = 0, videoHeight = 0;
 
     // using timer 1
-    SP804Timer<0x900C0000, timerHz> frameTimer;
+    ntls::devices::SP804Timer_Adjustable frameTimer{
+        ntls::devices::Timer1BaseAddress // using timer 1
+    };
 
     struct {
         uint16_t timeIncrementResolution;

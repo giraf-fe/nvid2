@@ -3,6 +3,11 @@
 
 EXE = nvid2
 
+DISTDIR = build
+OBJDIR = obj
+ASMDIR = asm
+SRCDIR = src
+
 GCC = nspire-gcc
 AS  = nspire-as
 GXX = nspire-g++
@@ -15,23 +20,25 @@ ZEHNFLAGS = --name "nvid2" --author "giraf-fe" --notice "mpeg4 video player" --2
 # -Werror removed for now due to xvid warnings
 SHAREDFLAGS =  -Wall -Wextra -Wpedantic -marm -finline-functions -march=armv5te -mtune=arm926ej-s -mfpu=auto -Ofast -flto -ffast-math -ffunction-sections -fdata-sections -mno-unaligned-access \
 			   -fno-math-errno -fomit-frame-pointer -fgcse-sm -fgcse-las -funsafe-loop-optimizations -fno-fat-lto-objects -frename-registers -fprefetch-loop-arrays \
-			  -Ixvid -DARCH_IS_32BIT -DARCH_IS_ARM
+			  -I $(SRCDIR)/xvid -I nspire-utils/include -DARCH_IS_32BIT -DARCH_IS_ARM
 GCCFLAGS = $(SHAREDFLAGS) -Wno-incompatible-pointer-types -std=c99
 GXXFLAGS = $(SHAREDFLAGS) -std=c++20
 LDFLAGS = -Wall -lnspireio
 
-DISTDIR = build
-OBJDIR = obj
-ASMDIR = asm
 
-OBJS = $(patsubst %.c, %.o, $(shell find . -name \*.c))
-OBJS += $(patsubst %.cpp, %.o, $(shell find . -name \*.cpp))
-OBJS += $(patsubst %.S, %.o, $(shell find . -name \*.S))
+OBJS = $(patsubst %.c, %.o, $(shell find $(SRCDIR) -name \*.c))
+OBJS += $(patsubst %.cpp, %.o, $(shell find $(SRCDIR) -name \*.cpp))
+OBJS += $(patsubst %.S, %.o, $(shell find $(SRCDIR) -name \*.S))
+
+LIBNSPUTILS = nspire-utils/libnspireutils.a
 
 vpath %.tns $(DISTDIR)
 vpath %.elf $(DISTDIR)
 
 all: $(EXE).tns
+
+$(LIBNSPUTILS):
+	$(MAKE) -C nspire-utils
 
 %.o: %.c
 	mkdir -p $(dir $(OBJDIR)/$@)
@@ -57,9 +64,9 @@ all: $(EXE).tns
 	# Disassemble
 	$(OBJDUMP) -D $(OBJDIR)/$@ > $(ASMDIR)/$(patsubst %.o,%.s,$@)
 
-$(EXE).elf: $(OBJS)
+$(EXE).elf: $(OBJS) $(LIBNSPUTILS)
 	mkdir -p $(DISTDIR)
-	$(LD) $(addprefix $(OBJDIR)/,$^) -o $(DISTDIR)/$@ $(LDFLAGS)
+	$(LD) $(addprefix $(OBJDIR)/,$(OBJS)) $(LIBNSPUTILS) -o $(DISTDIR)/$@ $(LDFLAGS)
 
 $(EXE).tns: $(EXE).elf
 	$(GENZEHN) --input $(DISTDIR)/$^ --output $(DISTDIR)/$@.zehn $(ZEHNFLAGS)
@@ -69,3 +76,4 @@ $(EXE).tns: $(EXE).elf
 clean:
 	rm -f $(addprefix $(OBJDIR)/,$(OBJS)) $(DISTDIR)/$(EXE).tns $(DISTDIR)/$(EXE).elf $(DISTDIR)/$(EXE).zehn
 	rm -rf $(ASMDIR)
+	$(MAKE) -C nspire-utils clean

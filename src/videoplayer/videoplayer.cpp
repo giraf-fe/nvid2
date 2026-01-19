@@ -2,6 +2,8 @@
 
 #include <xvid.h>
 #include <decoder.h>
+#undef uintptr_t // avoid conflict with portab.h
+
 #include <os.h>
 
 #include <new>
@@ -10,72 +12,18 @@
 #include <cstdio>
 
 #include <nspireio/uart.hpp>
+#include <nspire-utils/mem/SRAM.hpp>
 
-#include "mmu/MMUHijacker.hpp"
+using namespace ntls::devices;
+using namespace ntls::mem;
 
 namespace {
     // xvid global init singleton
-    constexpr uintptr_t SRAMSize = 0x40000; // 256 KB
-    constexpr uintptr_t PhySRAMAddress = 0xA4000000;
     constexpr uintptr_t NewSRAMAddress = 0xEE000000;
-    struct HijackedSRAM {
-        void* fakeSram;
-        std::optional<MMUHijacker> mmuHijacker;
 
-        bool initSuccess;
+    std::optional<ntls::platform::MMUEditor> g_mmuEditor = std::nullopt;
+    std::optional<ntls::mem::SRAM_Accessor> g_SRAMAccessor = std::nullopt;
 
-        HijackedSRAM() : fakeSram(nullptr), initSuccess(false) {
-            fakeSram = aligned_malloc(0x100000, 0x40000);
-            if (!fakeSram) {
-                return;
-            }
-            int mask = TCT_Local_Control_Interrupts(-1);
-
-            // construct MMU hijacker
-            mmuHijacker.emplace();
-
-            // copy original SRAM to fake SRAM
-            memcpy(fakeSram, (void*)PhySRAMAddress, 0x40000);
-
-            // flush fake SRAM to RAM
-            MMUHijacker::clean_dcache_range((uintptr_t)fakeSram, (uintptr_t)fakeSram + 0x40000);
-
-            // map fake sram
-            mmuHijacker->map(PhySRAMAddress, (uintptr_t)fakeSram, 0xC00);
-            mmuHijacker->map(0x00000000, (uintptr_t)fakeSram, 0xC00);
-
-            // map true SRAM to new address
-            mmuHijacker->map(NewSRAMAddress, PhySRAMAddress, 0xC0C); // cached for extra performance
-
-            // clear new SRAM area
-            memset((void*)NewSRAMAddress, 0, 0x40000);
-
-            // flush new SRAM to RAM
-            MMUHijacker::clean_dcache_range(NewSRAMAddress, NewSRAMAddress + 0x40000);
-
-            TCT_Local_Control_Interrupts(mask);
-
-            initSuccess = true;
-        }
-        ~HijackedSRAM() {
-            if (fakeSram) {
-                // restore SRAM contents
-                if(initSuccess) {
-                    int mask = TCT_Local_Control_Interrupts(-1);
-                    memcpy((void*)NewSRAMAddress, fakeSram, 0x40000);
-                    MMUHijacker::clean_dcache_range(NewSRAMAddress, NewSRAMAddress + 0x40000);
-                    TCT_Local_Control_Interrupts(mask);
-                }
-                aligned_free(fakeSram);
-            }
-        }
-    };
-
-    // constexpr size_t kXvidPreallocatedBufferSize = 1024 * 1024; // 1 MB
-    // std::unique_ptr<uint8_t[], AlignedDeleter> g_xvidPreallocatedBuffer;
-    // constexpr size_t kXvidPreallocatedBufferSize = 0x20000; // 128 KB
-    // SRAMBuffer<0xA4000000, kXvidPreallocatedBufferSize, 0x20000> g_xvidPreallocatedBuffer; // 128 KB
-    std::optional<HijackedSRAM> g_hijackedSRAM = std::nullopt;
     bool g_xvidGlobalInitialized = false;
 
     bool EnsureXvidGlobalInitialized(std::string& errorMsg) {
@@ -83,24 +31,39 @@ namespace {
             return true;
         }
 
-        // g_xvidPreallocatedBuffer = std::unique_ptr<uint8_t[], AlignedDeleter>(
-        //     static_cast<uint8_t*>(AlignedAllocate(CACHE_LINE_SIZE, kXvidPreallocatedBufferSize))
-        // );
-        
-        // if (!g_xvidPreallocatedBuffer) {
-        //     errorMsg = "Failed to allocate Xvid preallocated buffer";
-        //     return false;
-        // }
-
-        if (!g_hijackedSRAM) {
-            g_hijackedSRAM.emplace();
-            if(!g_hijackedSRAM) {
-                errorMsg = "Failed to allocate HijackedSRAM";
+        // create mmu editor if not exists
+        if (!g_mmuEditor) {
+            try {
+                g_mmuEditor.emplace();
+            } catch (const std::bad_alloc&) {
+                errorMsg = "Failed to allocate MMUEditor for Xvid";
+                return false;
+            } catch (...) {
+                errorMsg = "Unknown error initiating MMUEditor for Xvid";
                 return false;
             }
-            if (!g_hijackedSRAM->initSuccess) {
-                errorMsg = "Failed to initialize hijacked SRAM for Xvid";
-                g_hijackedSRAM = std::nullopt;
+        }
+        if(!g_SRAMAccessor) {
+            try {
+                g_SRAMAccessor.emplace(g_mmuEditor.value(), NewSRAMAddress,
+                    []() -> uint32_t {
+                        return TCT_Local_Control_Interrupts(-1);
+                    },
+                    [](uint32_t mask) {
+                        TCT_Local_Control_Interrupts(mask);
+                    },
+                    ntls::platform::MMUAccessPermission::FullAccess,
+                    ntls::platform::MMUCachePolicy::WriteBackCache,
+                    0
+                );
+            } catch (const std::bad_alloc&) {
+                errorMsg = "Failed to allocate SRAM_Accessor for Xvid";
+                return false;
+            } catch (const std::runtime_error& e) {
+                errorMsg = std::string("Failed to initialize SRAM_Accessor for Xvid: ") + e.what();
+                return false;
+            } catch (...) {
+                errorMsg = "Unknown error initiating SRAM_Accessor for Xvid";
                 return false;
             }
         }
@@ -108,7 +71,7 @@ namespace {
         xvid_gbl_init_t xvid_gbl_init{};
         xvid_gbl_init.version = XVID_VERSION;
         xvid_gbl_init.sram_base = (void*)NewSRAMAddress;
-        xvid_gbl_init.sram_size = SRAMSize;
+        xvid_gbl_init.sram_size = ntls::mem::SRAM_Size;
 
         const int rc = xvid_global(NULL, XVID_GBL_INIT, &xvid_gbl_init, NULL);
         if (rc < 0) {
@@ -154,18 +117,17 @@ VideoPlayer::VideoPlayer(const VideoPlayerOptions& options) : options(options) {
 
 
     // init timer
-    frameTimer.stop();
-    frameTimer.clearIRQ();
-    frameTimer.configure(CreateSP804TimerInfo{
-        .mode = SP804TimerMode::FreeRunning,
-        .oneshotMode = SP804OneshotMode::Wrapping,
-        .prescale = SP804TimerPrescale::Div256,
-        .size = SP804TimerSize::Size32Bit,
-        .interruptEnable = false,
-        .enableTimer = false
-    });
-    frameTimer.setLoadValue(timerStartValue);
-    frameTimer.start();
+    frameTimer.setControl(SP804SelectedTimer::Timer1, TIMER_CTRL_DISABLE); // disable timer
+    frameTimer.clearInterrupt(SP804SelectedTimer::Timer1); // clear any pending IRQ
+    frameTimer.setSpeed(TimerSpeedControl_Speed12MHz); // set to 12 MHz
+    frameTimer.setControl(SP804SelectedTimer::Timer1, 
+        TIMER_CTRL_FREE_RUNNING | TIMER_CTRL_WRAP | TIMER_CTRL_PRESCALER_DIV256 | 
+        TIMER_CTRL_32BIT | TIMER_CTRL_INT_DISABLE | TIMER_CTRL_DISABLE
+    );
+    frameTimer.setLoadReg(SP804SelectedTimer::Timer1, timerStartValue);
+    frameTimer.setControl(SP804SelectedTimer::Timer1, 
+        frameTimer.getControl(SP804SelectedTimer::Timer1) | TIMER_CTRL_ENABLE
+    );
 
     // init lcd, decoder, file
     // open file
@@ -197,8 +159,8 @@ VideoPlayer::VideoPlayer(const VideoPlayerOptions& options) : options(options) {
     this->xvidDecoderHandle = xvid_dec_create.handle;
 
     // init buffers
-    this->fileReadBuffer = std::unique_ptr<uint8_t[], AlignedDeleter>(
-        static_cast<uint8_t*>(AlignedAllocate(CACHE_LINE_SIZE, SIZEOF_FILE_READ_BUFFER + FILE_READ_BUFFER_PADDING))
+    this->fileReadBuffer = std::unique_ptr<uint8_t[], ntls::mem::AlignedDeleter>(
+        static_cast<uint8_t*>(ntls::mem::AlignedAllocate(CACHE_LINE_SIZE, SIZEOF_FILE_READ_BUFFER + FILE_READ_BUFFER_PADDING))
     );
     if (!this->fileReadBuffer) {
         this->failedFlag = true;
@@ -209,9 +171,9 @@ VideoPlayer::VideoPlayer(const VideoPlayerOptions& options) : options(options) {
     memset(this->fileReadBuffer.get() + SIZEOF_FILE_READ_BUFFER, 0, FILE_READ_BUFFER_PADDING);
 
     // allocate decoded frames buffer
-    this->frameBuffersArray = std::unique_ptr<std::array<FrameBufferType, FRAMES_IN_FLIGHT_COUNT>, AlignedDeleter>(
+    this->frameBuffersArray = std::unique_ptr<std::array<FrameBufferType, FRAMES_IN_FLIGHT_COUNT>, ntls::mem::AlignedDeleter>(
         reinterpret_cast<std::array<FrameBufferType, FRAMES_IN_FLIGHT_COUNT>*>(
-            AlignedAllocate(CACHE_LINE_SIZE, sizeof(std::array<FrameBufferType, FRAMES_IN_FLIGHT_COUNT>))
+            ntls::mem::AlignedAllocate(CACHE_LINE_SIZE, sizeof(std::array<FrameBufferType, FRAMES_IN_FLIGHT_COUNT>))
         )
     );
     if(!this->frameBuffersArray) {
@@ -292,7 +254,7 @@ std::string VideoPlayer::getErrorMessage() const {
 bool VideoPlayer::fillReadBuffer(uint32_t requestedBytes) {
     // Returns true if more data may still be available (i.e., not at EOF).
     // Callers interpret false as end-of-file reached.
-    uint32_t memmoveStartTicks = this->frameTimer.getCurrentValue32();
+    uint32_t memmoveStartTicks = this->frameTimer.getCurrentValue32(SP804SelectedTimer::Timer1);
 
     // Compact unread bytes to the start of the buffer.
     if (this->decoderReadHead > 0 && this->decoderReadAvailable > 0) {
@@ -305,7 +267,7 @@ bool VideoPlayer::fillReadBuffer(uint32_t requestedBytes) {
     // After compaction, unread data begins at index 0.
     this->decoderReadHead = 0;
 
-    uint32_t memmoveEndTicks = this->frameTimer.getCurrentValue32();
+    uint32_t memmoveEndTicks = this->frameTimer.getCurrentValue32(SP804SelectedTimer::Timer1);
 
     const uint32_t freeSpace = SIZEOF_FILE_READ_BUFFER - static_cast<uint32_t>(this->decoderReadAvailable);
     const uint32_t bytesToRead = std::min<uint32_t>(requestedBytes, freeSpace);
@@ -321,7 +283,7 @@ bool VideoPlayer::fillReadBuffer(uint32_t requestedBytes) {
         );
         this->decoderReadAvailable += bytesRead;
     }
-    const uint32_t fileReadEndTicks = this->frameTimer.getCurrentValue32();
+    const uint32_t fileReadEndTicks = this->frameTimer.getCurrentValue32(SP804SelectedTimer::Timer1);
 
     this->lastMemmoveTime = memmoveStartTicks - memmoveEndTicks;
     this->lastMemmoveBytes = static_cast<uint32_t>(this->decoderReadAvailable) - bytesRead;
@@ -364,12 +326,12 @@ uint32_t VideoPlayer::CalculateFileReadAmount(uint32_t ticks) {
 void VideoPlayer::play() {
     void* oldBuf = this->InitLCD();
 
-    uint32_t playbackStartTicks = this->frameTimer.getCurrentValue32();
+    uint32_t playbackStartTicks = this->frameTimer.getCurrentValue32(SP804SelectedTimer::Timer1);
 
     // play video
     uint64_t frameCounter = 0;
     while (true) {
-        uint32_t frameStartTicks = this->frameTimer.getCurrentValue32();
+        uint32_t frameStartTicks = this->frameTimer.getCurrentValue32(SP804SelectedTimer::Timer1);
         // escape
         if(any_key_pressed()) {
             if(isKeyPressed(KEY_NSPIRE_ESC)) {
@@ -402,12 +364,12 @@ void VideoPlayer::play() {
         this->WaitForNextFrame(frameData.timingTicks, playbackStartTicks);
         
         // display frame
-        uint32_t ticksBeforeBlit = frameTimer.getCurrentValue32();
+        uint32_t ticksBeforeBlit = frameTimer.getCurrentValue32(SP804SelectedTimer::Timer1);
         if (!this->options.benchmarkMode || this->options.blitDuringBenchmark) {
             this->DisplayFrame(frameData);
             frameCounter++;
         }
-        uint32_t ticksAfterBlit = frameTimer.getCurrentValue32();
+        uint32_t ticksAfterBlit = frameTimer.getCurrentValue32(SP804SelectedTimer::Timer1);
         this->lastFrameBlitTime = ticksBeforeBlit - ticksAfterBlit;
         profilingInfo.Frame_BlitTimes.push_back(this->lastFrameBlitTime);
 
@@ -424,7 +386,7 @@ void VideoPlayer::play() {
             break;
         }
         
-        uint32_t frameEndTicks = this->frameTimer.getCurrentValue32();
+        uint32_t frameEndTicks = this->frameTimer.getCurrentValue32(SP804SelectedTimer::Timer1);
         profilingInfo.Frame_TotalTimes.push_back(frameStartTicks - frameEndTicks);
     }
 
@@ -469,18 +431,18 @@ void VideoPlayer::WaitForNextFrame(uint32_t timingTicks, uint32_t playbackStartT
     {
         constexpr uint32_t marginOfErrorTicks = timerHz / (1000); // 1 ms margin of error
         constexpr uint32_t attemptReadThreshold = SIZEOF_FILE_READ_BUFFER / 2; // try read if less than 1/2 buffer free
-        int32_t ticksToWait = frameTimer.getCurrentValue32() - targetTimerTicks;
+        int32_t ticksToWait = frameTimer.getCurrentValue32(SP804SelectedTimer::Timer1) - targetTimerTicks;
         
         // if there is extra time to do other processing, try to fill read buffer
         if (!this->fileEndReached && ticksToWait > marginOfErrorTicks && this->decoderReadAvailable < attemptReadThreshold) {
-            uint32_t readStartTime = frameTimer.getCurrentValue32();
+            uint32_t readStartTime = frameTimer.getCurrentValue32(SP804SelectedTimer::Timer1);
             uint32_t fileReadAmount = this->CalculateFileReadAmount(ticksToWait - marginOfErrorTicks);
             if(fileReadAmount > 0) {
                 this->fileEndReached = !this->fillReadBuffer(fileReadAmount);
                 if (this->failedFlag) {
                     return;
                 }
-                uint32_t readEndTime = frameTimer.getCurrentValue32();
+                uint32_t readEndTime = frameTimer.getCurrentValue32(SP804SelectedTimer::Timer1);
                 ticksToWait -= (readStartTime - readEndTime);
             }
         }

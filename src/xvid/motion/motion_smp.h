@@ -31,7 +31,6 @@
 
 typedef struct
 {
-	pthread_t handle;		/* thread's handle */
 	const FRAMEINFO *current;
 	uint8_t * RefQ;
 	int y_row;

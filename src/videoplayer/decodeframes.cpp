@@ -7,6 +7,8 @@
 
 #include <nspireio/uart.hpp>
 
+using namespace ntls::devices;
+
 HandleInsufficientDataResult VideoPlayer::handleInsufficientData(
     uint32_t frameDecodeStartTicks,
     FrameBufferType* frameBuffer,
@@ -15,7 +17,7 @@ HandleInsufficientDataResult VideoPlayer::handleInsufficientData(
     bool requireDiscontinuity
 ) {
     profilingInfo.WastedFrame_DecodeTimes.push_back(
-        frameDecodeStartTicks - this->frameTimer.getCurrentValue32()
+        frameDecodeStartTicks - this->frameTimer.getCurrentValue32(SP804SelectedTimer::Timer1)
     );
 
     // Always release the acquired buffer on any insufficient-data path.
@@ -63,7 +65,7 @@ void VideoPlayer::fillFramesInFlightQueue() {
     bool hadDiscontinuity = false;
 
     while (!this->framesInFlightQueue.full() && this->decodedFramesSwapchain.availableCount() > 0) {
-        uint32_t frameDecodeStartTicks = this->frameTimer.getCurrentValue32();
+        uint32_t frameDecodeStartTicks = this->frameTimer.getCurrentValue32(SP804SelectedTimer::Timer1);
 
         xvid_dec_frame_t decFrame{};
         decFrame.version = XVID_VERSION;
@@ -163,7 +165,7 @@ void VideoPlayer::fillFramesInFlightQueue() {
                     throw 1; // unreachable
                 }
             }().push_back(
-                frameDecodeStartTicks - this->frameTimer.getCurrentValue32()
+                frameDecodeStartTicks - this->frameTimer.getCurrentValue32(SP804SelectedTimer::Timer1)
             );
 
             // advance read head

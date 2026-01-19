@@ -51,8 +51,6 @@ typedef struct {
 
 typedef struct
 {
-	pthread_t handle;		/* thread's handle */
-
 	XVID_POSTPROC *tbls;
 	IMAGE * img;
 	const MACROBLOCK * mbs;
@@ -91,7 +89,4 @@ typedef IMAGEBRIGHTNESS *IMAGEBRIGHTNESS_PTR;
 extern IMAGEBRIGHTNESS_PTR image_brightness;
 
 IMAGEBRIGHTNESS image_brightness_c;
-IMAGEBRIGHTNESS image_brightness_mmx;
-IMAGEBRIGHTNESS image_brightness_sse2;
-
 #endif

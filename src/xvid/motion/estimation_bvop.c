@@ -1256,7 +1256,6 @@ SMPMotionEstimationBVOP(SMPData * h)
 				if (current_mb >= max_mbs) {
 					/* current workload is zero */
 					i--;
-					sched_yield();
 					continue;
 				}
 			}
