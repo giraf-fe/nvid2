@@ -1,0 +1,3 @@
+[submodule "nspire-utils"]
+	path = nspire-utils
+	url = https://github.com/giraf-fe/nspire-utils.git
