@@ -7,7 +7,7 @@
 #include <optional>
 #include <libndls.h>
 
-#include <nspire-utils/mem/AlignedAlloc.hpp>
+#include <nspire-utils/mem/Alloc.hpp>
 #include <nspire-utils/devices/SP804.hpp>
 
 #include "RingBuffer.hpp"
