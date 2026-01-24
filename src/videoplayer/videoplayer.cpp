@@ -388,6 +388,7 @@ void VideoPlayer::play() {
         
         uint32_t frameEndTicks = this->frameTimer.getCurrentValue32(SP804SelectedTimer::Timer1);
         profilingInfo.Frame_TotalTimes.push_back(frameStartTicks - frameEndTicks);
+        
     }
 
     this->CleanupLCD(oldBuf);

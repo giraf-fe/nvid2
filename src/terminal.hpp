@@ -25,3 +25,4 @@ public:
 CommandHandler GetplayCommandHandler();
 CommandHandler GetlsCommandHandler();
 CommandHandler GetcdCommandHandler();
+CommandHandler GetregisterCommandHandler();
