@@ -103,17 +103,6 @@ static void set_lcd_mode(unsigned int mode)
 }
 
 VideoPlayer::VideoPlayer(const VideoPlayerOptions& options) : options(options) {
-    // check options
-    if (options.preRotatedVideo && options.useMagicFrameBuffer) {
-        this->failedFlag = true;
-        this->errorMsg = "Incompatible options: preRotatedVideo cannot be true when using MagicFrameBuffer";
-        return;
-    }
-    if(!options.preRotatedVideo && !options.useMagicFrameBuffer) {
-        this->failedFlag = true;
-        this->errorMsg = "Incompatible options: one of preRotatedVideo or useMagicFrameBuffer must be true";
-        return;
-    }
 
 
     // init timer
@@ -200,27 +189,23 @@ VideoPlayer::VideoPlayer(const VideoPlayerOptions& options) : options(options) {
     }
 
     // check video dimensions
-    // TODO: auto detect
-    if(options.preRotatedVideo) {
-        if (this->videoWidth != SCREEN_HEIGHT || this->videoHeight != SCREEN_WIDTH) {
-            this->failedFlag = true;
-            this->errorMsg = 
-                "Invalid video dimensions: Got " + 
-                std::to_string(this->videoWidth) + "x" + std::to_string(this->videoHeight) + 
-                ", expected " + 
-                std::to_string(SCREEN_HEIGHT) + "x" + std::to_string(SCREEN_WIDTH);
-            return;
-        }
+    // auto detect
+    if(this->videoWidth == SCREEN_WIDTH && this->videoHeight == SCREEN_HEIGHT) {
+        this->options.preRotatedVideo = false;
+        this->options.useMagicFrameBuffer = true;
+    } else if (this->videoWidth == SCREEN_HEIGHT && this->videoHeight == SCREEN_WIDTH) {
+        this->options.preRotatedVideo = true;
+        this->options.useMagicFrameBuffer = false;
     } else {
-        if (this->videoWidth != SCREEN_WIDTH || this->videoHeight != SCREEN_HEIGHT) {
-            this->failedFlag = true;
-            this->errorMsg = 
-                "Invalid video dimensions: Got " + 
-                std::to_string(this->videoWidth) + "x" + std::to_string(this->videoHeight) + 
-                ", expected " + 
-                std::to_string(SCREEN_WIDTH) + "x" + std::to_string(SCREEN_HEIGHT);
-            return;
-        }
+        this->failedFlag = true;
+        this->errorMsg = 
+            "Invalid video dimensions: Got " + 
+            std::to_string(this->videoWidth) + "x" + std::to_string(this->videoHeight) + 
+            ", expected either " + 
+            std::to_string(SCREEN_WIDTH) + "x" + std::to_string(SCREEN_HEIGHT) + 
+            " or " + 
+            std::to_string(SCREEN_HEIGHT) + "x" + std::to_string(SCREEN_WIDTH);
+        return;
     }
 
     // fill decoded frames buffer
