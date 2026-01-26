@@ -12,6 +12,7 @@ int main(int argc, char** argv) {
         // if a filename is provided, play it directly
         auto playHandler = GetplayCommandHandler();
         std::vector<std::string> args;
+        args.push_back("play");
         for(int i = 1; i < argc; ++i) {
             args.push_back(argv[i]);
         }
